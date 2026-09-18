@@ -45,10 +45,13 @@ def domain_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         error_message=str(exc) or default_detail,
         response_data=None,
     )
-    return JSONResponse(status_code=status_code, content=response.model_dump(mode="json"))
+    return JSONResponse(
+        status_code=status_code, content=response.model_dump(mode="json")
+    )
 
 
 # --- your existing handlers, unchanged ---
+
 
 def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     try:
@@ -62,10 +65,14 @@ def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse
         error_message=str(exc.detail),
         response_data=None,
     )
-    return JSONResponse(status_code=exc.status_code, content=response.model_dump(mode="json"))
+    return JSONResponse(
+        status_code=exc.status_code, content=response.model_dump(mode="json")
+    )
 
 
-def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
     messages = []
     for error in exc.errors():
         location = " -> ".join(str(item) for item in error["loc"])
