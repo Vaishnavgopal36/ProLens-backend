@@ -11,12 +11,11 @@ from app.models.enums import EntityStatus, UserRole
 from app.models.project import Feature, ProjectMember
 from app.models.user import User
 from app.schemas.feature import FeatureCreate, FeatureRead, FeatureUpdate
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response
 
 router = APIRouter(
     prefix="/features",
     tags=["features"],
-    responses=COMMON_RESPONSES,
 )
 
 

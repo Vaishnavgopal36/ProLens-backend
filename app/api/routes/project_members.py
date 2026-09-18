@@ -14,12 +14,12 @@ from app.schemas.project_member import (
     ProjectMemberCreate,
     ProjectMemberRead,
 )
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response 
 
 router = APIRouter(
     prefix="/project-members",
     tags=["project-members"],
-    responses=COMMON_RESPONSES,
+     
 )
 
 

@@ -11,13 +11,13 @@ from app.models.enums import EntityStatus, PriorityLevel, UserRole
 from app.models.project import Feature, ProjectMember
 from app.models.task import Task, TaskAssignee
 from app.models.user import User
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response 
 from app.schemas.task import TaskCreate, TaskRead, TaskUpdate
 
 router = APIRouter(
     prefix="/tasks",
     tags=["tasks"],
-    responses=COMMON_RESPONSES,
+     
 )
 
 

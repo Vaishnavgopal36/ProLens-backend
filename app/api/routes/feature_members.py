@@ -14,12 +14,11 @@ from app.schemas.feature_member import (
     FeatureMemberCreate,
     FeatureMemberRead,
 )
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response
 
 router = APIRouter(
     prefix="/feature-members",
     tags=["feature-members"],
-    responses=COMMON_RESPONSES,
 )
 
 

@@ -15,12 +15,11 @@ from app.schemas.calendar_event import (
     CalendarEventRead,
     CalendarEventUpdate,
 )
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response
 
 router = APIRouter(
     prefix="/calendar-events",
     tags=["calendar-events"],
-    responses=COMMON_RESPONSES,
 )
 
 

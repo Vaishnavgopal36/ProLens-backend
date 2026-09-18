@@ -1,97 +1,64 @@
-from http import HTTPStatus
-
-from fastapi import HTTPException, Request
+import logging
+from fastapi import Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from http import HTTPStatus
 
-from app.schemas.common_response import APIResponse
-from app.services.exceptions import (
-    # CrossOrganizationForbiddenError,
-    # EmailAlreadyExistsError,
-    InactiveAccountError,
-    InvalidCredentialsError,
-    InvalidRefreshTokenError,
-    InvalidSSOStateError,
-    MissingEmailClaimError,
-    NoSSOConnectionError,
-    # OrganizationIdRequiredError,
-    # UserNotFoundError,
-)
+from app.core.exception import AppException
 
-DOMAIN_EXCEPTION_MAP: dict[type[Exception], tuple[int, str]] = {
-    InvalidCredentialsError: (401, "Incorrect email or password"),
-    InactiveAccountError: (403, "Account is not active"),
-    InvalidRefreshTokenError: (401, "Invalid or expired refresh token"),
-    NoSSOConnectionError: (404, "No SSO connection configured for this organization"),
-    InvalidSSOStateError: (400, "Invalid or expired SSO state"),
-    MissingEmailClaimError: (400, "Identity provider did not return an email claim"),
-    # EmailAlreadyExistsError: (409, "Email already in use"),
-    # OrganizationIdRequiredError: (422, "organization_id is required"),
-    # CrossOrganizationForbiddenError: (403, "Cannot create users outside your organization"),
-    # UserNotFoundError: (404, "User not found"),
-}
+logger = logging.getLogger("app")
 
 
-def domain_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    status_code, default_detail = DOMAIN_EXCEPTION_MAP[type(exc)]
-    try:
-        status_message = HTTPStatus(status_code).phrase
-    except ValueError:
-        status_message = "Request failed"
-
-    response = APIResponse[None](
-        status_code=status_code,
-        status_message=status_message,
-        error_message=str(exc) or default_detail,
-        response_data=None,
-    )
+async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
     return JSONResponse(
-        status_code=status_code, content=response.model_dump(mode="json")
-    )
-
-
-# --- your existing handlers, unchanged ---
-
-
-def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    try:
-        status_message = HTTPStatus(exc.status_code).phrase
-    except ValueError:
-        status_message = "Request failed"
-
-    response = APIResponse[None](
         status_code=exc.status_code,
-        status_message=status_message,
-        error_message=str(exc.detail),
-        response_data=None,
+        content={
+            "status_code": exc.status_code,
+            "status_message": exc.message,
+            "error_message": exc.details or exc.message,
+            "response_data": None,
+        },
     )
+
+
+async def http_exception_handler(
+    request: Request, exc: StarletteHTTPException
+) -> JSONResponse:
+    status_phrase = HTTPStatus(exc.status_code).phrase  # e.g. "Unauthorized"
     return JSONResponse(
-        status_code=exc.status_code, content=response.model_dump(mode="json")
+        status_code=exc.status_code,
+        content={
+            "status_code": exc.status_code,
+            "status_message": status_phrase,  # "Unauthorized"
+            "error_message": str(exc.detail),  # "Could not validate credentials"
+            "response_data": None,
+        },
     )
 
 
-def validation_exception_handler(
+async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
-    messages = []
-    for error in exc.errors():
-        location = " -> ".join(str(item) for item in error["loc"])
-        messages.append(f"{location}: {error['msg']}")
-
-    response = APIResponse[None](
-        status_code=422,
-        status_message="Validation Error",
-        error_message="; ".join(messages),
-        response_data=None,
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "status_code": status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "status_message": "Validation Error",
+            "error_message": exc.errors(),
+            "response_data": None,
+        },
     )
-    return JSONResponse(status_code=422, content=response.model_dump(mode="json"))
 
 
-def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    response = APIResponse[None](
-        status_code=500,
-        status_message="Internal Server Error",
-        error_message="An unexpected error occurred",
-        response_data=None,
+async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled server exception: %s", str(exc))
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "status_message": "Internal Server Error",
+            "error_message": "An unexpected error occurred. Please try again later.",
+            "response_data": None,
+        },
     )
-    return JSONResponse(status_code=500, content=response.model_dump(mode="json"))

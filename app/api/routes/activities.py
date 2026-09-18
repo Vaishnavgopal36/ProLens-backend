@@ -15,12 +15,11 @@ from app.schemas.activity import (
     ActivityRead,
     ActivityUpdate,
 )
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response
 
 router = APIRouter(
     prefix="/activities",
-    tags=["activities"],
-    responses=COMMON_RESPONSES,
+    tags=["activities"]
 )
 
 

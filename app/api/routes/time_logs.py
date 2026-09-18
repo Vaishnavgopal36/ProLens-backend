@@ -9,13 +9,13 @@ from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.timesheet import TimeLog
 from app.models.user import User
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response 
 from app.schemas.time_log import TimeLogCreate, TimeLogRead, TimeLogUpdate
 
 router = APIRouter(
     prefix="/time-logs",
     tags=["time-logs"],
-    responses=COMMON_RESPONSES,
+     
 )
 
 

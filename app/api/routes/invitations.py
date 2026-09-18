@@ -13,12 +13,11 @@ from app.models.invitation import Invitation
 from app.models.project import ProjectMember
 from app.models.user import User
 from app.schemas.invitation import InvitationCreate, InvitationRead
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response
 
 router = APIRouter(
     prefix="/invitations",
     tags=["invitations"],
-    responses=COMMON_RESPONSES,
 )
 
 
