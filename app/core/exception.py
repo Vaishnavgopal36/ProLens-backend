@@ -74,3 +74,19 @@ class CrossOrganizationForbiddenError(AppException):
 class UserNotFoundError(AppException):
     status_code = 404
     default_message = "User not found"
+
+class InvalidRoleAssignmentError(AppException):
+    status_code = 403
+    default_message = "You cannot assign this role"
+
+class OrganizationNotFoundError(AppException):
+    status_code = 404
+    default_message = "Organization not found"
+
+class DomainAlreadyInUseError(AppException):
+    status_code = 409
+    default_message = "Domain already in use"
+
+class AdminCredentialsIncompleteError(AppException):
+    status_code = 422
+    default_message = "admin_email and admin_password must be provided together"
