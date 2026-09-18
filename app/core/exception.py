@@ -1,10 +1,11 @@
 from typing import Any
 
+
 class AppException(Exception):
-    """Base exception for all domain and business logic errors."""
+    """Base exception for application, domain, and business logic errors."""
 
     status_code: int = 400
-    status_message: str = "Error"
+    status_message: str = "Bad Request"
     default_message: str = "An application error occurred."
 
     def __init__(
@@ -15,10 +16,18 @@ class AppException(Exception):
         details: dict | list[Any] | str | None = None,
     ) -> None:
         self.message = message or self.default_message
-        self.status_code = status_code or self.status_code
-        self.status_message = status_message or self.status_message
+        self.status_code = status_code if status_code is not None else self.status_code
+        self.status_message = (
+            status_message if status_message is not None else self.status_message
+        )
         self.details = details
+
         super().__init__(self.message)
+
+
+# ---------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------
 
 
 class InvalidCredentialsError(AppException):
@@ -39,6 +48,11 @@ class InvalidRefreshTokenError(AppException):
     default_message = "Invalid or expired refresh token"
 
 
+# ---------------------------------------------------------
+# SSO
+# ---------------------------------------------------------
+
+
 class NoSSOConnectionError(AppException):
     status_code = 404
     status_message = "Not Found"
@@ -56,37 +70,100 @@ class MissingEmailClaimError(AppException):
     status_message = "Bad Request"
     default_message = "Identity provider did not return an email claim"
 
+
+# ---------------------------------------------------------
+# User
+# ---------------------------------------------------------
+
+
 class EmailAlreadyInUseError(AppException):
     status_code = 409
+    status_message = "Conflict"
     default_message = "Email already in use"
 
 
 class OrganizationIdRequiredError(AppException):
     status_code = 422
+    status_message = "Unprocessable Entity"
     default_message = "organization_id is required"
 
 
 class CrossOrganizationForbiddenError(AppException):
     status_code = 403
+    status_message = "Forbidden"
     default_message = "Cannot create users outside your organization"
 
 
 class UserNotFoundError(AppException):
     status_code = 404
+    status_message = "Not Found"
     default_message = "User not found"
+
 
 class InvalidRoleAssignmentError(AppException):
     status_code = 403
+    status_message = "Forbidden"
     default_message = "You cannot assign this role"
+
+
+# ---------------------------------------------------------
+# Organization
+# ---------------------------------------------------------
+
 
 class OrganizationNotFoundError(AppException):
     status_code = 404
+    status_message = "Not Found"
     default_message = "Organization not found"
+
 
 class DomainAlreadyInUseError(AppException):
     status_code = 409
+    status_message = "Conflict"
     default_message = "Domain already in use"
+
 
 class AdminCredentialsIncompleteError(AppException):
     status_code = 422
-    default_message = "admin_email and admin_password must be provided together"
+    status_message = "Unprocessable Entity"
+    default_message = "admin_email and admin_password " "must be provided together"
+
+
+# ---------------------------------------------------------
+# General organization/project rule
+# ---------------------------------------------------------
+
+
+class MustBelongToOrganizationError(AppException):
+    status_code = 403
+    status_message = "Forbidden"
+    default_message = "Must belong to an organization"
+
+
+# ---------------------------------------------------------
+# Project
+# ---------------------------------------------------------
+
+
+class ProjectNotFoundError(AppException):
+    status_code = 404
+    status_code = "Not Found"
+    default_message = "Project not found"
+
+
+class MustBelongToOrganizationError(AppException):
+    status_code = 403
+    status_message = "Forbidden"
+    default_message = "Must belong to an organization"
+
+
+class ProjectMutationForbiddenError(AppException):
+    status_code = 403
+    status_message = "Forbidden"
+    default_message = "Insufficient permissions"
+
+
+class ProjectHasTasksError(AppException):
+    status_code = 409
+    status_message = "Conflict"
+    default_message = "Project has associated tasks and cannot be deleted"

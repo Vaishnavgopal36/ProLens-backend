@@ -3,21 +3,22 @@ from sqlalchemy.orm import Session
 from app.schemas.project import ProjectCreate, ProjectRead
 from fastapi import Depends, APIRouter, status as http_status
 from app.api.deps import require_roles
-from app.models.enums import UserRole
+from app.models.enums import UserRole, ProjectStatus
 from app.schemas.common_response import success_response, APIResponse
 from app.core.database import get_db
-from app.models.enums import ProjectStatus, UserRole
-from app.models.project import Feature, Project, ProjectMember
-from app.models.task import Task
+from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
 from app.schemas.common_response import APIResponse, success_response
+from app.services.project_service import ProjectService
+import uuid
+from app.api.deps import get_current_user, require_roles
 
 router = APIRouter(
     prefix="/projects",
     tags=["projects"],
 )
-from app.services.project_service import ProjectService
+
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -34,6 +35,7 @@ def create_project(
     db: Session = Depends(get_db),
     caller: User = Depends(require_creator),
 ) -> APIResponse[ProjectRead]:
+
     service = ProjectService(db)
 
     project = service.create_project(
@@ -47,4 +49,88 @@ def create_project(
         status_code=http_status.HTTP_201_CREATED,
         status_message="Project created successfully",
         response_data=project,
+    )
+
+
+@router.get(
+    "",
+    response_model=APIResponse[list[ProjectRead]],
+    status_code=http_status.HTTP_200_OK,
+)
+def list_projects(
+    id: uuid.UUID | None = None,
+    status: ProjectStatus | None = None,
+    organization_id: uuid.UUID | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> APIResponse[list[ProjectRead]]:
+
+    service = ProjectService(db)
+
+    projects = service.list_projects(
+        id=id,
+        status=status,
+        organization_id=organization_id,
+    )
+
+    return success_response(
+        status_code=http_status.HTTP_200_OK,
+        status_message="Projects retrieved successfully",
+        response_data=projects,
+    )
+
+
+@router.patch(
+    "/{project_id}",
+    response_model=APIResponse[ProjectRead],
+    status_code=http_status.HTTP_200_OK,
+)
+def update_project(
+    project_id: uuid.UUID,
+    payload: ProjectUpdate,
+    db: Session = Depends(get_db),
+    caller: User = Depends(get_current_user),
+) -> APIResponse[ProjectRead]:
+
+    service = ProjectService(db)
+
+    project = service.update_project(
+        project_id=project_id,
+        payload=payload,
+        caller=caller,
+    )
+
+    db.commit()
+
+    return success_response(
+        status_code=http_status.HTTP_200_OK,
+        status_message="Project updated successfully",
+        response_data=project,
+    )
+
+
+@router.delete(
+    "/{project_id}",
+    response_model=APIResponse[None],
+    status_code=http_status.HTTP_200_OK,
+)
+def delete_project(
+    project_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    caller: User = Depends(get_current_user),
+) -> APIResponse[None]:
+
+    service = ProjectService(db)
+
+    service.delete_project(
+        project_id=project_id,
+        caller=caller,
+    )
+
+    db.commit()
+
+    return success_response(
+        status_code=http_status.HTTP_200_OK,
+        status_message="Project deleted successfully",
+        response_data=None,
     )
