@@ -11,12 +11,11 @@ from app.models.collaboration import Attachment
 from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.attachment import AttachmentCreate, AttachmentRead
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response
 
 router = APIRouter(
     prefix="/attachments",
     tags=["attachments"],
-    responses=COMMON_RESPONSES,
 )
 
 

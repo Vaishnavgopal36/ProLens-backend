@@ -11,12 +11,11 @@ from app.models.collaboration import Comment
 from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.comment import CommentCreate, CommentRead, CommentUpdate
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response
 
 router = APIRouter(
     prefix="/comments",
     tags=["comments"],
-    responses=COMMON_RESPONSES,
 )
 
 

@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.models.enums import SSOProvider, UserRole, UserStatus
 from app.models.sso import SSOConnection
 from app.models.user import User
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response 
 from app.schemas.sso import (
     SSOConnectionCreate,
     SSOConnectionRead,
@@ -20,7 +20,7 @@ from app.schemas.sso import (
 router = APIRouter(
     prefix="/sso-connections",
     tags=["sso"],
-    responses=COMMON_RESPONSES,
+     
 )
 
 require_admin = require_roles(

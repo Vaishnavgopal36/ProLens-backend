@@ -12,12 +12,12 @@ from app.models.project import Feature, Project, ProjectMember
 from app.models.task import Task
 from app.models.user import User
 from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response 
 
 router = APIRouter(
     prefix="/projects",
     tags=["projects"],
-    responses=COMMON_RESPONSES,
+     
 )
 
 require_creator = require_roles(

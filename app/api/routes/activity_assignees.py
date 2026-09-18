@@ -14,12 +14,11 @@ from app.schemas.activity_assignee import (
     ActivityAssigneeCreate,
     ActivityAssigneeRead,
 )
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response
 
 router = APIRouter(
     prefix="/activity-assignees",
     tags=["activity-assignees"],
-    responses=COMMON_RESPONSES,
 )
 
 require_manager = require_roles(

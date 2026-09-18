@@ -11,13 +11,12 @@ from app.core.database import get_db
 from app.models.enums import LeaveType, UserRole
 from app.models.timesheet import LeaveLog
 from app.models.user import User
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response
 from app.schemas.leave_log import LeaveLogCreate, LeaveLogRead, LeaveLogUpdate
 
 router = APIRouter(
     prefix="/leave-logs",
     tags=["leave-logs"],
-    responses=COMMON_RESPONSES,
 )
 
 

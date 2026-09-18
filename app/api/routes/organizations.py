@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_roles
-from app.api.routes.users import build_user
+from app.services.user_service import UserService
 from app.core.database import get_db
 from app.models.enums import OrgStatus, UserRole
 from app.models.tenancy import Organization
@@ -17,12 +17,12 @@ from app.schemas.organization import (
     OrganizationUpdate,
 )
 from app.schemas.user import UserCreate
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response 
 
 router = APIRouter(
     prefix="/organizations",
     tags=["organizations"],
-    responses=COMMON_RESPONSES,
+     
 )
 
 require_super_admin = require_roles(UserRole.super_admin)

@@ -15,12 +15,11 @@ from app.schemas.designation import (
     DesignationRead,
     DesignationUpdate,
 )
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response
 
 router = APIRouter(
     prefix="/designations",
     tags=["designations"],
-    responses=COMMON_RESPONSES,
 )
 
 require_admin = require_roles(

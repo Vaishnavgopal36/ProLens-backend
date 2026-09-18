@@ -15,7 +15,7 @@ from app.models.user import User
 from app.repositories.session_repository import SessionRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth import TokenResponse
-from app.services.exceptions import (
+from app.core.exception import (
     InactiveAccountError,
     InvalidCredentialsError,
     InvalidRefreshTokenError,

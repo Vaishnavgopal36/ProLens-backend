@@ -11,7 +11,7 @@ from app.models.enums import UserRole
 from app.models.project import Feature, ProjectMember
 from app.models.task import Task, TaskAssignee
 from app.models.user import User
-from app.schemas.common_response import APIResponse, success_response, COMMON_RESPONSES
+from app.schemas.common_response import APIResponse, success_response 
 from app.schemas.task_assignee import (
     TaskAssigneeCreate,
     TaskAssigneeRead,
@@ -20,7 +20,7 @@ from app.schemas.task_assignee import (
 router = APIRouter(
     prefix="/task-assignees",
     tags=["task-assignees"],
-    responses=COMMON_RESPONSES,
+     
 )
 
 
