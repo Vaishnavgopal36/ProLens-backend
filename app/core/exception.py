@@ -126,3 +126,31 @@ class InsufficientPermissionError(AppException):
 class InvalidCredentialsAuthError(AppException):
     status_code = 401
     default_message = "Could not validate credentials"
+
+class SSOConnectionAlreadyExistsError(AppException):
+    status_code = 409
+    default_message = "Organization already has a connection"
+
+
+class SSOConnectionNotFoundError(AppException):
+    status_code = 404
+    default_message = "Connection not found"
+
+
+class UnsupportedSSOProviderError(AppException):
+    status_code = 400
+    default_message = "Unsupported provider for sync"
+
+class FeatureNotFoundError(AppException):
+    status_code = 404
+    default_message = "Feature not found"
+
+
+class NotProjectMemberError(AppException):
+    status_code = 403
+    default_message = "Not a member of this project"
+
+
+class TaskNotFoundError(AppException):
+    status_code = 404
+    default_message = "Task not found"

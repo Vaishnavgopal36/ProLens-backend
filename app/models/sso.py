@@ -22,6 +22,6 @@ class SSOConnection(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         PgEnum(SSOProvider, name="sso_provider", create_type=False),
         nullable=True,
     )
-    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    tenant_id: Mapped[str|None] = mapped_column(String(64), nullable=True)
     client_id: Mapped[str] = mapped_column(String(64), nullable=False)
     client_secret: Mapped[str] = mapped_column(String(255), nullable=False)

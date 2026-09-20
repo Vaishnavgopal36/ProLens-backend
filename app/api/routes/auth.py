@@ -1,15 +1,12 @@
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session
-from app.core.cookies import set_auth_cookies
+
 from app.api.deps import bypass_rls_for_pre_auth_lookup, get_current_user
+from app.core.cookies import set_auth_cookies
 from app.core.database import get_db
-from app.core.exception import InvalidRefreshTokenError
+from app.core.exception import InvalidRefreshTokenError, InvalidSSOStateError
 from app.models.user import User
-from app.schemas.auth import (
-    CurrentUser,
-    LoginRequest,
-    SSOAuthorizeResponse,
-)
+from app.schemas.auth import CurrentUser, LoginRequest, SSOAuthorizeResponse
 from app.schemas.common_response import APIResponse, success_response
 from app.services.auth_service import AuthService
 from app.services.sso_service import SSOService
@@ -27,9 +24,8 @@ def login(
     db: Session = Depends(get_db),
 ) -> APIResponse[None]:
     bypass_rls_for_pre_auth_lookup(db)
-    
-    tokens = AuthService(db).login(payload.email, payload.password)
 
+    tokens = AuthService(db).login(payload.email, payload.password)
     set_auth_cookies(response, tokens)
 
     return success_response(
@@ -102,7 +98,7 @@ def sso_authorize(
 ) -> APIResponse[SSOAuthorizeResponse]:
     host = request.headers.get("host", "").split(":")[0].lower()
     bypass_rls_for_pre_auth_lookup(db)
-    
+
     result = SSOService(db).authorize(host)
 
     return success_response(
@@ -114,14 +110,19 @@ def sso_authorize(
 
 @router.get("/sso/callback", response_model=APIResponse[None])
 def sso_callback(
-    code: str,
-    state: str,
     response: Response,
     db: Session = Depends(get_db),
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
 ) -> APIResponse[None]:
+    if error or code is None or state is None:
+        raise InvalidSSOStateError()
+
     bypass_rls_for_pre_auth_lookup(db)
 
     tokens = SSOService(db).callback(code, state)
+    db.commit()
     set_auth_cookies(response, tokens)
 
     return success_response(
