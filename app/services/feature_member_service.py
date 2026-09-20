@@ -11,6 +11,8 @@ from app.core.exception import (
     UserNotFoundError,
     CrossOrganizationForbiddenError,
     MustBelongToOrganizationError,
+    ProjectMembershipRequiredError,
+    ProjectNotFoundError,
 )
 from app.models.enums import UserRole
 from app.models.project import Feature, FeatureMember
@@ -42,6 +44,11 @@ class FeatureMemberService:
 
         if feature is None:
             raise FeatureNotFoundError()
+
+        project = self.projects.get_active_by_id(feature.project_id)
+
+        if project is None:
+            raise ProjectNotFoundError()
 
         return feature
 
@@ -98,6 +105,12 @@ class FeatureMemberService:
 
         if user.organization_id != caller.organization_id:
             raise CrossOrganizationForbiddenError()
+
+        if not self.projects.is_member(
+            project_id=feature.project_id,
+            user_id=payload.user_id,
+        ):
+            raise ProjectMembershipRequiredError()
 
         existing = self.feature_members.get_active_by_feature_and_user(
             feature_id=payload.feature_id,

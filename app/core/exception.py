@@ -188,7 +188,7 @@ class MustBelongToOrganizationError(AppException):
 
 class ProjectNotFoundError(AppException):
     status_code = 404
-    status_code = "Not Found"
+    status_message = "Not Found"
     default_message = "Project not found"
 
 
@@ -211,6 +211,37 @@ class ProjectHasTasksError(AppException):
 
 
 # ---------------------------------------------------------
+# Project Member
+# ---------------------------------------------------------
+
+
+class ProjectMemberNotFoundError(AppException):
+    status_code = 404
+    status_message = "Not Found"
+    default_message = "Project member not found"
+
+
+class ProjectMemberAlreadyExistsError(AppException):
+    status_code = 409
+    status_message = "Conflict"
+    default_message = "User is already a project member"
+
+
+class ProjectMemberMutationForbiddenError(AppException):
+    status_code = 403
+    status_message = "Forbidden"
+    default_message = "Insufficient permissions"
+
+
+class InvalidProjectMemberRoleError(AppException):
+    status_code = 403
+    status_message = "Forbidden"
+    default_message = (
+        "Only managers can be added directly; " "invite employees via /invitations"
+    )
+
+
+# ---------------------------------------------------------
 # Feature
 # ---------------------------------------------------------
 
@@ -225,6 +256,12 @@ class FeatureMutationForbiddenError(AppException):
     status_code = 403
     status_message = "Forbidden"
     default_message = "Insufficient permissions"
+
+
+class ProjectMembershipRequiredError(AppException):
+    status_code = 403
+    status_message = "Forbidden"
+    default_message = "User must be a project member before being assigned to a feature"
 
 
 # ---------------------------------------------------------
