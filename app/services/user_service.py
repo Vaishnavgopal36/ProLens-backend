@@ -6,15 +6,19 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.core.exception import (
+    CannotDeleteLastAdminError,
+    CannotDeletePrivilegedUserError,
+    CannotDeleteSelfError,
     CrossOrganizationForbiddenError,
     EmailAlreadyInUseError,
+    FieldNotEditableError,
     InvalidRoleAssignmentError,
     OrganizationIdRequiredError,
     OrganizationNotFoundError,
     UserNotFoundError,
 )
 from app.core.security import hash_password
-from app.models.enums import UserRole, UserStatus
+from app.models.enums import UserRole, UserRoleFilter, UserStatus
 from app.models.user import User
 from app.repositories.organization_repository import OrganizationRepository
 from app.repositories.user_repository import UserRepository
@@ -67,19 +71,23 @@ class UserService:
             first_name=payload.first_name,
             last_name=payload.last_name,
             role=payload.role,
-            status=UserStatus.invited,
+            status=UserStatus.active,
         )
 
         return self.users.add(user)
 
     def list_users(
-        self,
-        *,
-        id: uuid.UUID | None = None,
-        organization_id: uuid.UUID | None = None,
-        role: UserRole | None = None,
-        status: UserStatus | None = None,
-    ) -> list[User]:
+    self,
+    caller: User,                                   
+    *,
+    id: uuid.UUID | None = None,
+    organization_id: uuid.UUID | None = None,
+    role: UserRoleFilter | None = None,
+    status: UserStatus | None = None,
+) -> list[User]:
+        if caller.role != UserRole.super_admin:
+            organization_id = caller.organization_id
+
         return self.users.list_filtered(
             id=id,
             organization_id=organization_id,
@@ -87,22 +95,59 @@ class UserService:
             status=status,
         )
 
-    def update_user(self, user_id: uuid.UUID, payload: UserUpdate) -> User:
+
+
+    def update_user(self, caller: User, user_id: uuid.UUID, payload: UserUpdate) -> User:
+        SELF_SERVICE_FIELDS = {"first_name", "last_name", "password"}
         user = self.users.get_by_id(user_id)
         if user is None or user.deleted_at is not None:
             raise UserNotFoundError()
+        
+        update_data = payload.model_dump(exclude_unset=True)
+        is_self_edit = caller.id == user_id
 
-        for field, value in payload.model_dump(exclude_unset=True).items():
+        if is_self_edit and caller.role == UserRole.employee:
+            disallowed = set(update_data) - SELF_SERVICE_FIELDS
+            if disallowed:
+                raise FieldNotEditableError(fields=disallowed)
+        else:
+            if caller.role != UserRole.super_admin:
+                if not is_self_edit and user.organization_id != caller.organization_id:
+                    raise CrossOrganizationForbiddenError()
+
+            if "role" in update_data:
+                self._validate_role_assignment(caller, update_data["role"])
+
+        if "password" in update_data:
+            update_data["password_hash"] = hash_password(update_data.pop("password"))
+
+        for field, value in update_data.items():
             setattr(user, field, value)
 
         self.db.flush()
         self.db.refresh(user)
         return user
 
-    def delete_user(self, user_id: uuid.UUID, caller: User) -> None:
+    def delete_user(self, caller: User, user_id: uuid.UUID) -> None:
         user = self.users.get_by_id(user_id)
         if user is None or user.deleted_at is not None:
             raise UserNotFoundError()
+
+        if user.id == caller.id:
+            raise CannotDeleteSelfError()
+
+        if caller.role != UserRole.super_admin and user.organization_id != caller.organization_id:
+            raise CannotDeletePrivilegedUserError()
+
+        if caller.role != UserRole.super_admin and user.role == UserRole.super_admin:
+            raise CannotDeletePrivilegedUserError()
+
+        if user.role == UserRole.admin:
+            remaining = self.users.count_active_admins(
+                user.organization_id, exclude_user_id=user.id
+            )
+            if remaining == 0:
+                raise CannotDeleteLastAdminError()
 
         user.deleted_at = datetime.now(timezone.utc)
         user.deleted_by = caller.id

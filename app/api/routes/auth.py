@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session
-
+from app.core.cookies import set_auth_cookies
 from app.api.deps import bypass_rls_for_pre_auth_lookup, get_current_user
-from app.core.config import settings
 from app.core.database import get_db
 from app.core.exception import InvalidRefreshTokenError
 from app.models.user import User
@@ -10,7 +9,6 @@ from app.schemas.auth import (
     CurrentUser,
     LoginRequest,
     SSOAuthorizeResponse,
-    TokenResponse,
 )
 from app.schemas.common_response import APIResponse, success_response
 from app.services.auth_service import AuthService
@@ -22,35 +20,17 @@ router = APIRouter(
 )
 
 
-@router.post("/login", response_model=APIResponse[TokenResponse])
+@router.post("/login", response_model=APIResponse[None])
 def login(
     payload: LoginRequest,
     response: Response,
     db: Session = Depends(get_db),
-) -> APIResponse[TokenResponse]:
+) -> APIResponse[None]:
     bypass_rls_for_pre_auth_lookup(db)
     
-    # Exceptions (InvalidCredentialsError, InactiveAccountError) auto-bubble to global handler
     tokens = AuthService(db).login(payload.email, payload.password)
 
-    response.set_cookie(
-        key="access_token",
-        value=tokens.access_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=3600,
-        path="/",
-    )
-    response.set_cookie(
-        key="refresh_token",
-        value=tokens.refresh_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=86400 * settings.REFRESH_TOKEN_EXPIRE_DAYS,
-        path="/auth/refresh",
-    )
+    set_auth_cookies(response, tokens)
 
     return success_response(
         status_code=status.HTTP_200_OK,
@@ -59,37 +39,19 @@ def login(
     )
 
 
-@router.post("/refresh", response_model=APIResponse[TokenResponse])
+@router.post("/refresh", response_model=APIResponse[None])
 def refresh(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
-) -> APIResponse[TokenResponse]:
+) -> APIResponse[None]:
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
         raise InvalidRefreshTokenError()
 
     bypass_rls_for_pre_auth_lookup(db)
     tokens = AuthService(db).refresh(refresh_token)
-
-    response.set_cookie(
-        key="access_token",
-        value=tokens.access_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=3600,
-        path="/",
-    )
-    response.set_cookie(
-        key="refresh_token",
-        value=tokens.refresh_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=86400 * settings.REFRESH_TOKEN_EXPIRE_DAYS,
-        path="/auth/refresh",
-    )
+    set_auth_cookies(response, tokens)
 
     return success_response(
         status_code=status.HTTP_200_OK,
@@ -150,18 +112,20 @@ def sso_authorize(
     )
 
 
-@router.get("/sso/callback", response_model=APIResponse[TokenResponse])
+@router.get("/sso/callback", response_model=APIResponse[None])
 def sso_callback(
     code: str,
     state: str,
+    response: Response,
     db: Session = Depends(get_db),
-) -> APIResponse[TokenResponse]:
+) -> APIResponse[None]:
     bypass_rls_for_pre_auth_lookup(db)
-    
+
     tokens = SSOService(db).callback(code, state)
+    set_auth_cookies(response, tokens)
 
     return success_response(
         status_code=status.HTTP_200_OK,
         status_message="SSO login successful",
-        response_data=tokens,
+        response_data=None,
     )

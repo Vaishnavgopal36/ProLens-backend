@@ -32,13 +32,11 @@ from app.core.exception_handlers import (
 
 app = FastAPI(title="ProLens API")
 
-# --- Global Exception Handlers ---
 app.add_exception_handler(AppException, app_exception_handler)
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
 
-# --- Routers ---
 app.include_router(auth.router)
 app.include_router(organizations.router)
 app.include_router(users.router)
@@ -56,6 +54,8 @@ app.include_router(time_logs.router)
 app.include_router(calendar_events.router)
 app.include_router(comments.router)
 app.include_router(attachments.router)
+app.include_router(activities.router)
+app.include_router(activity_assignees.router)
 
 
 @app.get("/health")
