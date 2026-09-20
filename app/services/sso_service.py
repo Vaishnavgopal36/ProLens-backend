@@ -1,3 +1,5 @@
+# app/services/sso_service.py
+
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -5,20 +7,21 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from sqlalchemy.orm import Session
 
-from app.core.azure_ad import AzureADClient, generate_pkce_pair
+from app.core.azure_ad import generate_pkce_pair
 from app.core.config import settings
-from app.models.enums import UserRole, UserStatus
-from app.models.user import User
-from app.repositories.sso_repository import SSORepository
-from app.repositories.user_repository import UserRepository
-from app.schemas.auth import SSOAuthorizeResponse, TokenResponse
-from app.services.auth_service import AuthService
-from app.services.exceptions import (
+from app.core.exception import (
     InactiveAccountError,
     InvalidSSOStateError,
     MissingEmailClaimError,
     NoSSOConnectionError,
 )
+from app.core.sso_clients import get_sso_client
+from app.models.enums import SSOProvider, UserRole, UserStatus
+from app.models.user import User
+from app.repositories.sso_repository import SSORepository
+from app.repositories.user_repository import UserRepository
+from app.schemas.auth import SSOAuthorizeResponse, TokenResponse
+from app.services.auth_service import AuthService
 
 SSO_STATE_EXPIRE_MINUTES = 10
 
@@ -53,9 +56,7 @@ class SSOService:
             algorithm=settings.JWT_ALGORITHM,
         )
 
-        client = AzureADClient(
-            connection.tenant_id, connection.client_id, connection.client_secret
-        )
+        client = get_sso_client(connection)
         url = client.build_authorize_url(
             self._redirect_uri(), state, nonce, code_challenge
         )
@@ -74,9 +75,7 @@ class SSOService:
         if connection is None:
             raise NoSSOConnectionError()
 
-        client = AzureADClient(
-            connection.tenant_id, connection.client_id, connection.client_secret
-        )
+        client = get_sso_client(connection)
         tokens = client.exchange_code(
             code, self._redirect_uri(), state_payload["code_verifier"]
         )
@@ -85,17 +84,21 @@ class SSOService:
         if claims.get("nonce") != state_payload["nonce"]:
             raise InvalidSSOStateError()
 
-        subject_id = claims["oid"]
+        subject_id = claims["oid"] if connection.provider == SSOProvider.azure_ad else claims["sub"]
         email = claims.get("email") or claims.get("preferred_username")
         if not email:
             raise MissingEmailClaimError()
 
         user = self.users.get_by_sso_subject_id(subject_id)
-        if user is None:
-            user = self.users.get_by_email(email)
 
         if user is None:
-            user = self.users.create(
+            email_match = self.users.get_by_email(email)
+            if email_match is not None and email_match.organization_id not in (None, org_id):
+                email_match = None
+            user = email_match
+
+        if user is None:
+            user = self.users.add(
                 User(
                     organization_id=org_id,
                     email=email,
