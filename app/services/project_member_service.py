@@ -96,7 +96,8 @@ class ProjectMemberService:
     ) -> None:
 
         if caller.role == UserRole.admin:
-            return
+            if target.role in (UserRole.manager, UserRole.employee):
+                return
 
         if (
             caller.role == UserRole.manager
