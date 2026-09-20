@@ -7,6 +7,10 @@ class UserRole(str, enum.Enum):
     manager = "manager"
     employee = "employee"
 
+class UserRoleFilter(str, enum.Enum):
+    admin = "admin"
+    manager = "manager"
+    employee = "employee"
 
 class UserStatus(str, enum.Enum):
     invited = "invited"

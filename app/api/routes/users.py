@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
-from app.models.enums import UserRole, UserStatus
+from app.models.enums import UserRole, UserRoleFilter, UserStatus
 from app.models.user import User
 from app.schemas.common_response import APIResponse, success_response
 from app.schemas.user import UserCreate, UserRead, UserUpdate
@@ -42,19 +42,17 @@ def create_user(
     )
 
 
-@router.get(
-    "",
-    response_model=APIResponse[list[UserRead]],
-)
+@router.get("", response_model=APIResponse[list[UserRead]])
 def list_users(
     id: uuid.UUID | None = None,
     organization_id: uuid.UUID | None = None,
     role: UserRole | None = None,
     status: UserStatus | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    caller: User = Depends(require_admin),   
 ) -> APIResponse[list[UserRead]]:
     users = UserService(db).list_users(
+        caller,
         id=id,
         organization_id=organization_id,
         role=role,
@@ -68,17 +66,14 @@ def list_users(
     )
 
 
-@router.patch(
-    "/{user_id}",
-    response_model=APIResponse[UserRead],
-)
+@router.patch("/{user_id}", response_model=APIResponse[UserRead])
 def update_user(
     user_id: uuid.UUID,
     payload: UserUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
+    caller: User = Depends(get_current_user),   # ← was require_admin
 ) -> APIResponse[UserRead]:
-    user = UserService(db).update_user(user_id, payload)
+    user = UserService(db).update_user(caller, user_id, payload)
     db.commit()
 
     return success_response(
@@ -98,7 +93,7 @@ def delete_user(
     db: Session = Depends(get_db),
     caller: User = Depends(require_admin),
 ) -> APIResponse[None]:
-    UserService(db).delete_user(user_id, caller)
+    UserService(db).delete_user(caller, user_id)
     db.commit()
 
     return success_response(

@@ -90,3 +90,39 @@ class DomainAlreadyInUseError(AppException):
 class AdminCredentialsIncompleteError(AppException):
     status_code = 422
     default_message = "admin_email and admin_password must be provided together"
+
+class DesignationNotFoundError(AppException):
+    status_code = 404
+    default_message = "Designation not found"
+
+class CallerHasNoOrganizationError(AppException):
+    status_code = 403
+    default_message = "Must belong to an organization"
+
+class FieldNotEditableError(AppException):
+    status_code = 403
+
+    def __init__(self, fields: set[str]):
+        super().__init__(f"You are not allowed to edit: {', '.join(fields)}")
+
+class CannotDeleteSelfError(AppException):
+    status_code = 403
+    default_message = "You cannot delete your own account"
+
+
+class CannotDeletePrivilegedUserError(AppException):
+    status_code = 403
+    default_message = "You do not have permission to delete this user"
+
+
+class CannotDeleteLastAdminError(AppException):
+    status_code = 409
+    default_message = "Cannot delete the last remaining admin of this organization"
+
+class InsufficientPermissionError(AppException):
+    status_code = 403
+    default_message = "Insufficient permissions"
+
+class InvalidCredentialsAuthError(AppException):
+    status_code = 401
+    default_message = "Could not validate credentials"

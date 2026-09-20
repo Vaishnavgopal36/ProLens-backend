@@ -1,10 +1,11 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from app.models.enums import UserRole, UserStatus
 from app.models.user import User
 from app.repositories.base_repository import BaseRepository
-
+import uuid
+from app.models.enums import UserRole
 
 class UserRepository(BaseRepository[User]):
     model = User
@@ -36,4 +37,12 @@ class UserRepository(BaseRepository[User]):
 
         return list(self.db.scalars(stmt))
 
-
+    def count_active_admins(self, organization_id: uuid.UUID, exclude_user_id: uuid.UUID | None = None) -> int:
+        stmt = select(func.count()).select_from(User).where(
+            User.organization_id == organization_id,
+            User.role == UserRole.admin,
+            User.deleted_at.is_(None),
+        )
+        if exclude_user_id is not None:
+            stmt = stmt.where(User.id != exclude_user_id)
+        return self.db.scalar(stmt)

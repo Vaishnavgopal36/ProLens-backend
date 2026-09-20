@@ -3,8 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
-
-from sqlalchemy import DateTime, ForeignKey, Index, String, text
+from sqlalchemy import DateTime, ForeignKey, Index, String, text,CheckConstraint
 from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -54,7 +53,12 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         back_populates="user", uselist=False
     )
 
-    __table_args__ = (Index("idx_users_org_role", "organization_id", "role"),)
+    __table_args__ = (Index("idx_users_org_role", "organization_id", "role"),
+                      CheckConstraint(
+                        "role != 'employee' OR designation_id IS NOT NULL",
+                        name="ck_users_employee_requires_designation",
+                    ),
+        )
 
 
 class UserPreference(Base):

@@ -194,7 +194,7 @@ def upsert_users_from_directory(
                     first_name=entry.get("givenName"),
                     last_name=entry.get("surname"),
                     role=UserRole.employee,
-                    status=UserStatus.invited,
+                    status=UserStatus.active,
                 )
             )
             created += 1
