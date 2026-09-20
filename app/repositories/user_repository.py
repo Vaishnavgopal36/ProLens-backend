@@ -7,6 +7,7 @@ from app.repositories.base_repository import BaseRepository
 import uuid
 from app.models.enums import UserRole
 
+
 class UserRepository(BaseRepository[User]):
     model = User
 
@@ -15,7 +16,18 @@ class UserRepository(BaseRepository[User]):
 
     def get_by_sso_subject_id(self, subject_id: str) -> User | None:
         return self.db.scalar(select(User).where(User.sso_subject_id == subject_id))
-    
+
+    def get_active_by_id(
+        self,
+        user_id: uuid.UUID,
+    ) -> User | None:
+        user = self.get_by_id(user_id)
+
+        if user is None or user.deleted_at is not None:
+            return None
+
+        return user
+
     def list_filtered(
         self,
         *,
@@ -37,11 +49,17 @@ class UserRepository(BaseRepository[User]):
 
         return list(self.db.scalars(stmt))
 
-    def count_active_admins(self, organization_id: uuid.UUID, exclude_user_id: uuid.UUID | None = None) -> int:
-        stmt = select(func.count()).select_from(User).where(
-            User.organization_id == organization_id,
-            User.role == UserRole.admin,
-            User.deleted_at.is_(None),
+    def count_active_admins(
+        self, organization_id: uuid.UUID, exclude_user_id: uuid.UUID | None = None
+    ) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(User)
+            .where(
+                User.organization_id == organization_id,
+                User.role == UserRole.admin,
+                User.deleted_at.is_(None),
+            )
         )
         if exclude_user_id is not None:
             stmt = stmt.where(User.id != exclude_user_id)

@@ -208,3 +208,43 @@ class ProjectHasTasksError(AppException):
     status_code = 409
     status_message = "Conflict"
     default_message = "Project has associated tasks and cannot be deleted"
+
+
+# ---------------------------------------------------------
+# Feature
+# ---------------------------------------------------------
+
+
+class FeatureNotFoundError(AppException):
+    status_code = 404
+    status_message = "Not Found"
+    default_message = "Feature not found"
+
+
+class FeatureMutationForbiddenError(AppException):
+    status_code = 403
+    status_message = "Forbidden"
+    default_message = "Insufficient permissions"
+
+
+# ---------------------------------------------------------
+# Feature Member
+# ---------------------------------------------------------
+
+
+class FeatureMemberNotFoundError(AppException):
+    status_code = 404
+    status_message = "Not Found"
+    default_message = "Feature member not found"
+
+
+class FeatureMemberAlreadyExistsError(AppException):
+    status_code = 409
+    status_message = "Conflict"
+    default_message = "User is already an active member"
+
+
+class FeatureMemberMutationForbiddenError(AppException):
+    status_code = 403
+    status_message = "Forbidden"
+    default_message = "Insufficient permissions"
