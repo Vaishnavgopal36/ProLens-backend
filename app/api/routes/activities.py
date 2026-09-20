@@ -1,64 +1,25 @@
 import uuid
-from datetime import datetime, timezone
-
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
-from app.models.enums import EntityStatus, UserRole
-from app.models.task import Activity, ActivityAssignee
+from app.models.enums import EntityStatus
 from app.models.user import User
-from app.schemas.activity import (
-    ActivityCreate,
-    ActivityRead,
-    ActivityUpdate,
-)
+from app.repositories.activity import ActivityRepository
+from app.schemas.activity import ActivityCreate, ActivityRead, ActivityUpdate
 from app.schemas.common_response import APIResponse, success_response
+from app.services.activity import ActivityService
 
 router = APIRouter(
     prefix="/activities",
-    tags=["activities"]
+    tags=["activities"],
 )
 
 
-def _is_active_assignee(
-    db: Session,
-    activity_id: uuid.UUID,
-    user_id: uuid.UUID,
-) -> bool:
-    return (
-        db.scalar(
-            select(ActivityAssignee).where(
-                ActivityAssignee.activity_id == activity_id,
-                ActivityAssignee.user_id == user_id,
-                ActivityAssignee.removed_at.is_(None),
-            )
-        )
-        is not None
-    )
-
-
-def _can_write(
-    db: Session,
-    caller: User,
-    activity: Activity,
-) -> bool:
-    if caller.role in (UserRole.admin, UserRole.manager):
-        return True
-
-    if caller.role == UserRole.employee:
-        if activity.created_by == caller.id:
-            return True
-
-        return _is_active_assignee(
-            db,
-            activity.id,
-            caller.id,
-        )
-
-    return False
+def get_activity_service(db: Session = Depends(get_db)) -> ActivityService:
+    repository = ActivityRepository(db)
+    return ActivityService(repository)
 
 
 @router.post(
@@ -68,21 +29,10 @@ def _can_write(
 )
 def create_activity(
     payload: ActivityCreate,
-    db: Session = Depends(get_db),
     caller: User = Depends(get_current_user),
+    service: ActivityService = Depends(get_activity_service),
 ) -> APIResponse[ActivityRead]:
-    activity = Activity(
-        organization_id=caller.organization_id,
-        project_id=payload.project_id,
-        name=payload.name,
-        description=payload.description,
-        created_by=caller.id,
-    )
-
-    db.add(activity)
-    db.flush()
-    db.refresh(activity)
-    db.commit()
+    activity = service.create_activity(payload=payload, caller=caller)
 
     return success_response(
         status_code=status.HTTP_201_CREATED,
@@ -99,21 +49,14 @@ def list_activities(
     id: uuid.UUID | None = None,
     project_id: uuid.UUID | None = None,
     status: EntityStatus | None = None,
-    db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
+    service: ActivityService = Depends(get_activity_service),
 ) -> APIResponse[list[ActivityRead]]:
-    stmt = select(Activity).where(Activity.deleted_at.is_(None))
-
-    if id is not None:
-        stmt = stmt.where(Activity.id == id)
-
-    if project_id is not None:
-        stmt = stmt.where(Activity.project_id == project_id)
-
-    if status is not None:
-        stmt = stmt.where(Activity.status == status)
-
-    activities = list(db.scalars(stmt))
+    activities = service.list_activities(
+        activity_id=id,
+        project_id=project_id,
+        status=status,
+    )
 
     return success_response(
         status_code=status.HTTP_200_OK,
@@ -129,31 +72,12 @@ def list_activities(
 def update_activity(
     activity_id: uuid.UUID,
     payload: ActivityUpdate,
-    db: Session = Depends(get_db),
     caller: User = Depends(get_current_user),
+    service: ActivityService = Depends(get_activity_service),
 ) -> APIResponse[ActivityRead]:
-    activity = db.get(Activity, activity_id)
-
-    if activity is None or activity.deleted_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Activity not found",
-        )
-
-    if not _can_write(db, caller, activity):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions",
-        )
-
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        setattr(activity, field, value)
-
-    activity.updated_by = caller.id
-
-    db.flush()
-    db.refresh(activity)
-    db.commit()
+    activity = service.update_activity(
+        activity_id=activity_id, payload=payload, caller=caller
+    )
 
     return success_response(
         status_code=status.HTTP_200_OK,
@@ -169,27 +93,10 @@ def update_activity(
 )
 def delete_activity(
     activity_id: uuid.UUID,
-    db: Session = Depends(get_db),
     caller: User = Depends(get_current_user),
+    service: ActivityService = Depends(get_activity_service),
 ) -> APIResponse[None]:
-    activity = db.get(Activity, activity_id)
-
-    if activity is None or activity.deleted_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Activity not found",
-        )
-
-    if not _can_write(db, caller, activity):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions",
-        )
-
-    activity.deleted_at = datetime.now(timezone.utc)
-    activity.deleted_by = caller.id
-
-    db.commit()
+    service.delete_activity(activity_id=activity_id, caller=caller)
 
     return success_response(
         status_code=status.HTTP_200_OK,
