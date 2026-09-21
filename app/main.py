@@ -23,16 +23,19 @@ from app.api.routes import (
     users,
 )
 from app.core.exception import AppException
+from app.core.storage import StorageError
 from app.core.exception_handlers import (
     app_exception_handler,
     generic_exception_handler,
     http_exception_handler,
+    storage_exception_handler,
     validation_exception_handler,
 )
 
 app = FastAPI(title="ProLens API")
 
 app.add_exception_handler(AppException, app_exception_handler)
+app.add_exception_handler(StorageError, storage_exception_handler)
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)

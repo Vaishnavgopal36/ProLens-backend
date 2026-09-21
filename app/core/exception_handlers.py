@@ -1,11 +1,13 @@
 import logging
 from fastapi import Request, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from http import HTTPStatus
 
 from app.core.exception import AppException
+from app.core.storage import StorageError
 
 logger = logging.getLogger("app")
 
@@ -17,6 +19,21 @@ async def app_exception_handler(request: Request, exc: AppException) -> JSONResp
             "status_code": exc.status_code,
             "status_message": exc.message,
             "error_message": exc.details or exc.message,
+            "response_data": None,
+        },
+    )
+
+
+async def storage_exception_handler(
+    request: Request, exc: StorageError
+) -> JSONResponse:
+    logger.error("Storage error: %s", exc)
+    return JSONResponse(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        content={
+            "status_code": status.HTTP_502_BAD_GATEWAY,
+            "status_message": "Bad Gateway",
+            "error_message": "File storage is unavailable",
             "response_data": None,
         },
     )
@@ -45,7 +62,10 @@ async def validation_exception_handler(
         content={
             "status_code": status.HTTP_422_UNPROCESSABLE_ENTITY,
             "status_message": "Validation Error",
-            "error_message": exc.errors(),
+            # ctx may hold the raw exception from a model_validator.
+            "error_message": jsonable_encoder(
+                exc.errors(), custom_encoder={Exception: str}
+            ),
             "response_data": None,
         },
     )
