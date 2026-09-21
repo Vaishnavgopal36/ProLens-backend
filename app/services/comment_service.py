@@ -25,7 +25,6 @@ class CommentTargetNotFoundError(AppException):
 
 
 class CommentService:
-
     def __init__(self, db: Session):
         self.db = db
         self.comments = CommentRepository(db)

@@ -35,7 +35,6 @@ class AttachmentNotFoundError(AppException):
 
 
 class AttachmentService:
-
     def __init__(self, db: Session):
         self.db = db
         self.attachments = AttachmentRepository(db)

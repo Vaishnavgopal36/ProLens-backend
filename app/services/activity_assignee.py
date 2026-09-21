@@ -30,7 +30,6 @@ def _already_assigned() -> AppException:
 
 
 class ActivityAssigneeService:
-
     def __init__(self, db: Session):
         self.db = db
         self.assignees = ActivityAssigneeRepository(db)

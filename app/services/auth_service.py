@@ -74,13 +74,12 @@ class AuthService:
 
     def login(self, email: str, password: str) -> TokenResponse:
         user = self.users.get_by_email(email.strip().lower())
-        password_hash = user.password_hash if user is not None else None
 
-        if password_hash is None:
+        if user is None or user.password_hash is None:
             # Same bcrypt cost whether or not the account exists (no user enumeration).
             verify_dummy_password(password)
             raise InvalidCredentialsError()
-        if not verify_password(password, password_hash):
+        if not verify_password(password, user.password_hash):
             raise InvalidCredentialsError()
 
         if user.deleted_at is not None:

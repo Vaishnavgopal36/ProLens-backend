@@ -30,7 +30,6 @@ def is_admin(user: User) -> bool:
 
 
 class ActivityService:
-
     def __init__(self, db: Session):
         self.db = db
         self.activities = ActivityRepository(db)

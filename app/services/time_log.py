@@ -26,7 +26,6 @@ class TimeLogNotFoundError(AppException):
 
 
 class TimeLogService:
-
     def __init__(self, db: Session):
         self.db = db
         self.time_logs = TimeLogRepository(db)
@@ -42,12 +41,8 @@ class TimeLogService:
                 or task.organization_id != caller.organization_id
             ):
                 raise TaskNotFoundError()
-            if not is_admin and not self.time_logs.is_task_assignee(
-                task.id, caller.id
-            ):
-                raise InsufficientPermissionError(
-                    "You are not assigned to this task"
-                )
+            if not is_admin and not self.time_logs.is_task_assignee(task.id, caller.id):
+                raise InsufficientPermissionError("You are not assigned to this task")
             return
 
         activity = self.time_logs.get_activity(payload.activity_id)

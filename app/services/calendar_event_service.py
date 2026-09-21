@@ -30,7 +30,6 @@ class CalendarEventNotFoundError(AppException):
 
 
 class CalendarEventService:
-
     def __init__(self, db: Session):
         self.db = db
         self.events = CalendarEventRepository(db)

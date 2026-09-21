@@ -47,7 +47,6 @@ def _is_overlap_violation(exc: IntegrityError) -> bool:
 
 
 class LeaveLogService:
-
     def __init__(self, db: Session):
         self.db = db
         self.leave_logs = LeaveLogRepository(db)

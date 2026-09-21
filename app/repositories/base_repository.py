@@ -10,7 +10,6 @@ ModelType = TypeVar("ModelType", bound=Base)
 
 
 class BaseRepository(Generic[ModelType]):
-
     model: type[ModelType]
 
     def __init__(self, db: Session):
