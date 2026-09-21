@@ -44,7 +44,9 @@ class Task(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     )
     estimated_hours: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
     labels: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True, default=list)
-    subtasks: Mapped[list[dict] | None] = mapped_column(JSONB, nullable=True, default=list)
+    subtasks: Mapped[list[dict] | None] = mapped_column(
+        JSONB, nullable=True, default=list
+    )
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_by: Mapped[uuid.UUID] = mapped_column(

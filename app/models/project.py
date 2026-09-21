@@ -102,7 +102,9 @@ class ProjectMember(Base, UUIDPrimaryKeyMixin):
 
     @property
     def designation(self) -> str | None:
-        return self.user.designation.name if self.user and self.user.designation else None
+        return (
+            self.user.designation.name if self.user and self.user.designation else None
+        )
 
     __table_args__ = (
         Index(

@@ -74,16 +74,23 @@ class OrganizationService:
         if include_metrics or include_audit_logs:
             for o in orgs:
                 if include_metrics:
-                    o.active_projects = self.db.scalar(
-                        select(func.count(Project.id)).where(
-                            Project.organization_id == o.id, Project.deleted_at.is_(None)
+                    o.active_projects = (
+                        self.db.scalar(
+                            select(func.count(Project.id)).where(
+                                Project.organization_id == o.id,
+                                Project.deleted_at.is_(None),
+                            )
                         )
-                    ) or 0
-                    o.total_members = self.db.scalar(
-                        select(func.count(User.id)).where(
-                            User.organization_id == o.id, User.deleted_at.is_(None)
+                        or 0
+                    )
+                    o.total_members = (
+                        self.db.scalar(
+                            select(func.count(User.id)).where(
+                                User.organization_id == o.id, User.deleted_at.is_(None)
+                            )
                         )
-                    ) or 0
+                        or 0
+                    )
                 if include_audit_logs:
                     logs = self.db.scalars(
                         select(AuditLog)

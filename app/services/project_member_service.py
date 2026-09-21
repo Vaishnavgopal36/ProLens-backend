@@ -155,7 +155,11 @@ class ProjectMemberService:
                 )
                 target = self.users.add(target)
         else:
-            raise AppException("Either user_id or email must be provided", status_code=422, status_message="Unprocessable Entity")
+            raise AppException(
+                "Either user_id or email must be provided",
+                status_code=422,
+                status_message="Unprocessable Entity",
+            )
 
         if target.organization_id != caller.organization_id:
             raise UserNotFoundError()

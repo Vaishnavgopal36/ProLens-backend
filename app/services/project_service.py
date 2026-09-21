@@ -141,10 +141,26 @@ class ProjectService:
                     p.insights = {
                         "task_count": snap.task_count,
                         "completed_task_count": snap.completed_task_count,
-                        "completion_rate_pct": float(snap.completion_rate_pct) if snap.completion_rate_pct else 0.0,
-                        "estimated_hours_total": float(snap.estimated_hours_total) if snap.estimated_hours_total else 0.0,
-                        "actual_hours_total": float(snap.actual_hours_total) if snap.actual_hours_total else 0.0,
-                        "health_status": snap.health_status.value if snap.health_status else "on_track",
+                        "completion_rate_pct": (
+                            float(snap.completion_rate_pct)
+                            if snap.completion_rate_pct
+                            else 0.0
+                        ),
+                        "estimated_hours_total": (
+                            float(snap.estimated_hours_total)
+                            if snap.estimated_hours_total
+                            else 0.0
+                        ),
+                        "actual_hours_total": (
+                            float(snap.actual_hours_total)
+                            if snap.actual_hours_total
+                            else 0.0
+                        ),
+                        "health_status": (
+                            snap.health_status.value
+                            if snap.health_status
+                            else "on_track"
+                        ),
                     }
                 else:
                     task_count = self.projects.count_active_tasks(p.id)
