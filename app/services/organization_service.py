@@ -22,7 +22,9 @@ class OrganizationService:
         self.db = db
         self.organizations = OrganizationRepository(db)
 
-    def create_organization(self, caller: User, payload: OrganizationCreate) -> Organization:
+    def create_organization(
+        self, caller: User, payload: OrganizationCreate
+    ) -> Organization:
         if self.organizations.get_by_domain(payload.domain):
             raise DomainAlreadyInUseError()
 
@@ -56,8 +58,12 @@ class OrganizationService:
         *,
         id: uuid.UUID | None = None,
         status: OrgStatus | None = None,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[Organization]:
-        return self.organizations.list_filtered(id=id, status=status)
+        return self.organizations.list_filtered(
+            id=id, status=status, limit=limit, offset=offset
+        )
 
     def update_organization(
         self, org_id: uuid.UUID, payload: OrganizationUpdate

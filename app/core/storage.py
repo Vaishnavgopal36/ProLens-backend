@@ -1,11 +1,11 @@
 import re
 import uuid
-from urllib.parse import quote
 from functools import lru_cache
+from urllib.parse import quote
 
 import boto3
 from botocore.client import Config
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 
 from app.core.config import settings
 
@@ -38,29 +38,37 @@ def key_belongs_to_org(key: str, organization_id: uuid.UUID) -> bool:
 
 
 def create_upload_url(key: str, mime_type: str) -> str:
-    return _client().generate_presigned_url(
-        "put_object",
-        Params={
-            "Bucket": settings.SUPABASE_S3_BUCKET,
-            "Key": key,
-            "ContentType": mime_type,
-        },
-        ExpiresIn=settings.ATTACHMENT_URL_EXPIRE_SECONDS,
-    )
+    try:
+        return _client().generate_presigned_url(
+            "put_object",
+            Params={
+                "Bucket": settings.SUPABASE_S3_BUCKET,
+                "Key": key,
+                "ContentType": mime_type,
+            },
+            ExpiresIn=settings.ATTACHMENT_URL_EXPIRE_SECONDS,
+        )
+    except (ClientError, BotoCoreError) as exc:
+        raise StorageError(str(exc)) from exc
 
 
 def create_download_url(key: str, file_name: str) -> str:
     # RFC 5987 encoding keeps CR/LF, quotes and non-ASCII out of the header.
     encoded = quote(file_name, safe="")
-    return _client().generate_presigned_url(
-        "get_object",
-        Params={
-            "Bucket": settings.SUPABASE_S3_BUCKET,
-            "Key": key,
-            "ResponseContentDisposition": f"attachment; filename*=UTF-8''{encoded}",
-        },
-        ExpiresIn=settings.ATTACHMENT_URL_EXPIRE_SECONDS,
-    )
+    try:
+        return _client().generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": settings.SUPABASE_S3_BUCKET,
+                "Key": key,
+                "ResponseContentDisposition": (
+                    f"attachment; filename*=UTF-8''{encoded}"
+                ),
+            },
+            ExpiresIn=settings.ATTACHMENT_URL_EXPIRE_SECONDS,
+        )
+    except (ClientError, BotoCoreError) as exc:
+        raise StorageError(str(exc)) from exc
 
 
 def get_object_size(key: str) -> int | None:
@@ -71,11 +79,13 @@ def get_object_size(key: str) -> int | None:
         if exc.response["Error"]["Code"] in ("404", "NoSuchKey", "NotFound"):
             return None
         raise StorageError(str(exc)) from exc
+    except BotoCoreError as exc:
+        raise StorageError(str(exc)) from exc
     return head["ContentLength"]
 
 
 def delete_object(key: str) -> None:
     try:
         _client().delete_object(Bucket=settings.SUPABASE_S3_BUCKET, Key=key)
-    except ClientError as exc:
+    except (ClientError, BotoCoreError) as exc:
         raise StorageError(str(exc)) from exc

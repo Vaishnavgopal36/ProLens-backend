@@ -1,9 +1,11 @@
 import uuid
+
 from fastapi import APIRouter, Depends
 from fastapi import status as http_status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
+from app.api.pagination import Pagination, get_pagination
 from app.core.database import get_db
 from app.models.enums import UserRole
 from app.models.user import User
@@ -47,10 +49,17 @@ def create_designation(
 def list_designations(
     id: uuid.UUID | None = None,
     name: str | None = None,
+    pagination: Pagination = Depends(get_pagination),
     db: Session = Depends(get_db),
-    caller: User = Depends(get_current_user),   
+    caller: User = Depends(get_current_user),
 ) -> APIResponse[list[DesignationRead]]:
-    designations = DesignationService(db).list_designations(caller, id=id, name=name)  
+    designations = DesignationService(db).list_designations(
+        caller,
+        id=id,
+        name=name,
+        limit=pagination.limit,
+        offset=pagination.offset,
+    )
 
     return success_response(
         status_code=http_status.HTTP_200_OK,
@@ -64,9 +73,11 @@ def update_designation(
     designation_id: uuid.UUID,
     payload: DesignationUpdate,
     db: Session = Depends(get_db),
-    caller: User = Depends(require_admin),   
+    caller: User = Depends(require_admin),
 ) -> APIResponse[DesignationRead]:
-    designation = DesignationService(db).update_designation(caller, designation_id, payload)
+    designation = DesignationService(db).update_designation(
+        caller, designation_id, payload
+    )
     db.commit()
 
     return success_response(
@@ -86,7 +97,7 @@ def delete_designation(
     db: Session = Depends(get_db),
     caller: User = Depends(require_admin),
 ) -> APIResponse[None]:
-    DesignationService(db).delete_designation(caller, designation_id)  
+    DesignationService(db).delete_designation(caller, designation_id)
     db.commit()
 
     return success_response(

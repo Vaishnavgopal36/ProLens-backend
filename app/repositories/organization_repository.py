@@ -13,7 +13,10 @@ class OrganizationRepository(BaseRepository[Organization]):
     model = Organization
 
     def get_by_domain(self, domain: str) -> Organization | None:
-        return self.db.scalar(select(Organization).where(func.lower(Organization.domain) == domain.strip().lower())
+        return self.db.scalar(
+            select(Organization).where(
+                func.lower(Organization.domain) == domain.strip().lower()
+            )
         )
 
     def get_active_by_id(self, org_id: uuid.UUID) -> Organization | None:

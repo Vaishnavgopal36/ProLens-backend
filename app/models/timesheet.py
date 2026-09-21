@@ -47,9 +47,6 @@ class TimeLog(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     log_date: Mapped[date] = mapped_column(Date, nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    deleted_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
-    )
 
     # Relationships
     user: Mapped[User] = relationship(foreign_keys=[user_id])
@@ -104,9 +101,6 @@ class LeaveLog(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         nullable=False,
     )
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    deleted_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
-    )
 
     # Relationships
     user: Mapped[User] = relationship(foreign_keys=[user_id])
@@ -149,9 +143,6 @@ class CalendarEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
-    )
-    deleted_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
 
     # Relationships

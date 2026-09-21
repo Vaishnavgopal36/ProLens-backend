@@ -2,30 +2,42 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import bypass_rls_for_pre_auth_lookup, get_current_user
-from app.core.cookies import set_auth_cookies
+from app.core.cookies import clear_auth_cookies, set_auth_cookies
 from app.core.database import get_db
-from app.core.exception import InvalidRefreshTokenError, InvalidSSOStateError
+from app.core.exception import (
+    InvalidCredentialsError,
+    InvalidRefreshTokenError,
+    InvalidSSOStateError,
+)
+from app.core.rate_limit import login_rate_limiter
 from app.models.user import User
 from app.schemas.auth import CurrentUser, LoginRequest, SSOAuthorizeResponse
 from app.schemas.common_response import APIResponse, success_response
 from app.services.auth_service import AuthService
 from app.services.sso_service import SSOService
 
-router = APIRouter(
-    prefix="/auth",
-    tags=["auth"]
-)
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=APIResponse[None])
 def login(
     payload: LoginRequest,
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
 ) -> APIResponse[None]:
-    bypass_rls_for_pre_auth_lookup(db)
+    client_ip = request.client.host if request.client else "unknown"
+    rate_key = f"{client_ip}:{payload.email}"
+    login_rate_limiter.check(rate_key)
 
-    tokens = AuthService(db).login(payload.email, payload.password)
+    bypass_rls_for_pre_auth_lookup(db)
+    try:
+        tokens = AuthService(db).login(payload.email, payload.password)
+    except InvalidCredentialsError:
+        login_rate_limiter.record(rate_key)
+        raise
+    login_rate_limiter.reset(rate_key)
+    db.commit()
     set_auth_cookies(response, tokens)
 
     return success_response(
@@ -46,7 +58,13 @@ def refresh(
         raise InvalidRefreshTokenError()
 
     bypass_rls_for_pre_auth_lookup(db)
-    tokens = AuthService(db).refresh(refresh_token)
+    try:
+        tokens = AuthService(db).refresh(refresh_token)
+    except InvalidRefreshTokenError:
+        # Persist a revocation done for a deleted/suspended account before failing.
+        db.commit()
+        raise
+    db.commit()
     set_auth_cookies(response, tokens)
 
     return success_response(
@@ -66,9 +84,9 @@ def logout(
     if refresh_token:
         bypass_rls_for_pre_auth_lookup(db)
         AuthService(db).logout(refresh_token)
+        db.commit()
 
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/auth/refresh")
+    clear_auth_cookies(response)
 
     return success_response(
         status_code=status.HTTP_200_OK,

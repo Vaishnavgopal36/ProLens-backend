@@ -1,19 +1,15 @@
 import uuid
 from datetime import date, datetime, timezone
-from typing import Any
+
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
+from app.models.task import Activity, ActivityAssignee, Task, TaskAssignee
 from app.models.timesheet import TimeLog
+from app.repositories.base_repository import BaseRepository
 
 
-class TimeLogRepository:
-
-    def __init__(self, db: Session):
-        self.db = db
-
-    def get_by_id(self, time_log_id: uuid.UUID) -> TimeLog | None:
-        return self.db.get(TimeLog, time_log_id)
+class TimeLogRepository(BaseRepository[TimeLog]):
+    model = TimeLog
 
     def get_active_by_id(self, time_log_id: uuid.UUID) -> TimeLog | None:
         time_log = self.get_by_id(time_log_id)
@@ -21,34 +17,42 @@ class TimeLogRepository:
             return None
         return time_log
 
-    def create(
-        self,
-        organization_id: uuid.UUID,
-        user_id: uuid.UUID,
-        task_id: uuid.UUID | None,
-        activity_id: uuid.UUID | None,
-        log_date: date,
-        duration_minutes: int,
-        description: str | None,
-    ) -> TimeLog:
-        time_log = TimeLog(
-            organization_id=organization_id,
-            user_id=user_id,
-            task_id=task_id,
-            activity_id=activity_id,
-            log_date=log_date,
-            duration_minutes=duration_minutes,
-            description=description,
-        )
-        self.db.add(time_log)
-        self.db.flush()
-        self.db.refresh(time_log)
-        self.db.commit()
-        return time_log
+    def get_task(self, task_id: uuid.UUID) -> Task | None:
+        return self.db.get(Task, task_id)
 
-    def list(
+    def get_activity(self, activity_id: uuid.UUID) -> Activity | None:
+        return self.db.get(Activity, activity_id)
+
+    def is_task_assignee(self, task_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        return (
+            self.db.scalar(
+                select(TaskAssignee.id).where(
+                    TaskAssignee.task_id == task_id,
+                    TaskAssignee.user_id == user_id,
+                    TaskAssignee.removed_at.is_(None),
+                )
+            )
+            is not None
+        )
+
+    def is_activity_assignee(self, activity_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        return (
+            self.db.scalar(
+                select(ActivityAssignee.id).where(
+                    ActivityAssignee.activity_id == activity_id,
+                    ActivityAssignee.user_id == user_id,
+                    ActivityAssignee.removed_at.is_(None),
+                )
+            )
+            is not None
+        )
+
+    def list_filtered(
         self,
-        log_id: uuid.UUID | None = None,
+        *,
+        limit: int,
+        offset: int,
+        id: uuid.UUID | None = None,
         user_id: uuid.UUID | None = None,
         task_id: uuid.UUID | None = None,
         activity_id: uuid.UUID | None = None,
@@ -56,8 +60,8 @@ class TimeLogRepository:
     ) -> list[TimeLog]:
         stmt = select(TimeLog).where(TimeLog.deleted_at.is_(None))
 
-        if log_id is not None:
-            stmt = stmt.where(TimeLog.id == log_id)
+        if id is not None:
+            stmt = stmt.where(TimeLog.id == id)
         if user_id is not None:
             stmt = stmt.where(TimeLog.user_id == user_id)
         if task_id is not None:
@@ -67,18 +71,10 @@ class TimeLogRepository:
         if log_date is not None:
             stmt = stmt.where(TimeLog.log_date == log_date)
 
-        return list(self.db.scalars(stmt))
-
-    def update(self, time_log: TimeLog, update_data: dict[str, Any]) -> TimeLog:
-        for field, value in update_data.items():
-            setattr(time_log, field, value)
-
-        self.db.flush()
-        self.db.refresh(time_log)
-        self.db.commit()
-        return time_log
+        stmt = stmt.order_by(TimeLog.created_at, TimeLog.id)
+        return list(self.db.scalars(stmt.limit(limit).offset(offset)))
 
     def soft_delete(self, time_log: TimeLog, deleted_by: uuid.UUID) -> None:
         time_log.deleted_at = datetime.now(timezone.utc)
         time_log.deleted_by = deleted_by
-        self.db.commit()
+        self.db.flush()

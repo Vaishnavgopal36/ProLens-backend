@@ -1,28 +1,46 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.enums import EntityStatus, PriorityLevel
 
 
+def _check_dates(start: date | None, due: date | None) -> None:
+    if start is not None and due is not None and start > due:
+        raise ValueError("start_date must be on or before due_date")
+
+
 class TaskCreate(BaseModel):
     feature_id: uuid.UUID | None = None
-    name: str
-    description: str | None = None
+    name: str = Field(min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=10_000)
     priority: PriorityLevel | None = None
     start_date: date | None = None
     due_date: date | None = None
+
+    @model_validator(mode="after")
+    def _validate_dates(self) -> "TaskCreate":
+        _check_dates(self.start_date, self.due_date)
+        return self
 
 
 class TaskUpdate(BaseModel):
     feature_id: uuid.UUID | None = None
-    name: str | None = None
-    description: str | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=10_000)
     status: EntityStatus | None = None
     priority: PriorityLevel | None = None
     start_date: date | None = None
     due_date: date | None = None
+
+    @model_validator(mode="after")
+    def _validate(self) -> "TaskUpdate":
+        for field in ("name", "status", "priority"):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        _check_dates(self.start_date, self.due_date)
+        return self
 
 
 class TaskRead(BaseModel):

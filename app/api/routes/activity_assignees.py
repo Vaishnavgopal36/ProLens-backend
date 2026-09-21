@@ -1,12 +1,13 @@
 import uuid
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
+from app.api.pagination import Pagination, get_pagination
 from app.core.database import get_db
 from app.models.enums import UserRole
 from app.models.user import User
-from app.repositories.activity_assignee import ActivityAssigneeRepository
 from app.schemas.activity_assignee import (
     ActivityAssigneeCreate,
     ActivityAssigneeRead,
@@ -28,8 +29,7 @@ require_manager = require_roles(
 def get_activity_assignee_service(
     db: Session = Depends(get_db),
 ) -> ActivityAssigneeService:
-    repository = ActivityAssigneeRepository(db)
-    return ActivityAssigneeService(repository)
+    return ActivityAssigneeService(db)
 
 
 @router.post(
@@ -39,10 +39,12 @@ def get_activity_assignee_service(
 )
 def create_activity_assignee(
     payload: ActivityAssigneeCreate,
+    db: Session = Depends(get_db),
     caller: User = Depends(require_manager),
     service: ActivityAssigneeService = Depends(get_activity_assignee_service),
 ) -> APIResponse[ActivityAssigneeRead]:
     assignee = service.create_assignee(payload=payload, caller=caller)
+    db.commit()
 
     return success_response(
         status_code=status.HTTP_201_CREATED,
@@ -59,10 +61,12 @@ def list_activity_assignees(
     id: uuid.UUID | None = None,
     activity_id: uuid.UUID | None = None,
     user_id: uuid.UUID | None = None,
+    pagination: Pagination = Depends(get_pagination),
     _: User = Depends(get_current_user),
     service: ActivityAssigneeService = Depends(get_activity_assignee_service),
 ) -> APIResponse[list[ActivityAssigneeRead]]:
     assignees = service.list_assignees(
+        pagination=pagination,
         assignee_id=id,
         activity_id=activity_id,
         user_id=user_id,
@@ -82,10 +86,12 @@ def list_activity_assignees(
 )
 def delete_activity_assignee(
     assignee_id: uuid.UUID,
+    db: Session = Depends(get_db),
     caller: User = Depends(require_manager),
     service: ActivityAssigneeService = Depends(get_activity_assignee_service),
 ) -> APIResponse[None]:
     service.delete_assignee(assignee_id=assignee_id, caller=caller)
+    db.commit()
 
     return success_response(
         status_code=status.HTTP_200_OK,

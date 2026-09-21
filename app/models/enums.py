@@ -7,10 +7,12 @@ class UserRole(str, enum.Enum):
     manager = "manager"
     employee = "employee"
 
+
 class UserRoleFilter(str, enum.Enum):
     admin = "admin"
     manager = "manager"
     employee = "employee"
+
 
 class UserStatus(str, enum.Enum):
     invited = "invited"
@@ -91,4 +93,4 @@ class AuditAction(str, enum.Enum):
 
 class SSOProvider(str, enum.Enum):
     azure_ad = "azure_ad"
-    google="google"
+    google = "google"

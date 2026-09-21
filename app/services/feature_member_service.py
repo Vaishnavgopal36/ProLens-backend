@@ -4,30 +4,27 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.core.exception import (
+    CrossOrganizationForbiddenError,
     FeatureMemberAlreadyExistsError,
     FeatureMemberMutationForbiddenError,
     FeatureMemberNotFoundError,
     FeatureNotFoundError,
-    UserNotFoundError,
-    CrossOrganizationForbiddenError,
     MustBelongToOrganizationError,
     ProjectMembershipRequiredError,
     ProjectNotFoundError,
+    UserNotFoundError,
 )
 from app.models.enums import UserRole, UserStatus
 from app.models.project import Feature, FeatureMember
 from app.models.user import User
-
 from app.repositories.feature_member_repository import FeatureMemberRepository
 from app.repositories.feature_repository import FeatureRepository
 from app.repositories.project_repository import ProjectRepository
 from app.repositories.user_repository import UserRepository
-
 from app.schemas.feature_member import FeatureMemberCreate
 
 
 class FeatureMemberService:
-
     def __init__(self, db: Session):
         self.db = db
         self.feature_members = FeatureMemberRepository(db)

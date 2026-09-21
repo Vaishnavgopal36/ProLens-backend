@@ -1,10 +1,12 @@
 import logging
+from http import HTTPStatus
+
 from fastapi import Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import DataError, IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from http import HTTPStatus
 
 from app.core.exception import AppException
 from app.core.storage import StorageError
@@ -81,4 +83,46 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
             "error_message": "An unexpected error occurred. Please try again later.",
             "response_data": None,
         },
+    )
+
+
+def _error(status_code: int, phrase: str, message: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status_code": status_code,
+            "status_message": phrase,
+            "error_message": message,
+            "response_data": None,
+        },
+    )
+
+
+async def integrity_error_handler(
+    request: Request, exc: IntegrityError
+) -> JSONResponse:
+    logger.warning("Integrity error: %s", exc.orig or exc)
+    # Postgres SQLSTATE: 23505 unique, 23503 foreign key, 23502 not-null, 23514 check.
+    sqlstate = getattr(exc.orig, "pgcode", None) or getattr(exc.orig, "sqlstate", None)
+    if sqlstate == "23505":
+        return _error(status.HTTP_409_CONFLICT, "Conflict", "Resource already exists")
+    if sqlstate in ("23502", "23514"):
+        return _error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Unprocessable Entity",
+            "Request violates a data constraint",
+        )
+    return _error(
+        status.HTTP_409_CONFLICT,
+        "Conflict",
+        "Request conflicts with the current state of the resource",
+    )
+
+
+async def data_error_handler(request: Request, exc: DataError) -> JSONResponse:
+    logger.warning("Data error: %s", exc.orig or exc)
+    return _error(
+        status.HTTP_422_UNPROCESSABLE_ENTITY,
+        "Unprocessable Entity",
+        "Invalid data in request",
     )

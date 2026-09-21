@@ -41,7 +41,11 @@ class ProjectMemberRepository(BaseRepository[ProjectMember]):
         id: uuid.UUID | None = None,
         project_id: uuid.UUID | None = None,
         user_id: uuid.UUID | None = None,
+        visible_to_user_id: uuid.UUID | None = None,
+        limit: int | None = None,
+        offset: int = 0,
     ) -> list[ProjectMember]:
+        """visible_to_user_id restricts to projects that user is an active member of."""
 
         stmt = select(ProjectMember).where(ProjectMember.removed_at.is_(None))
 
@@ -53,5 +57,17 @@ class ProjectMemberRepository(BaseRepository[ProjectMember]):
 
         if user_id is not None:
             stmt = stmt.where(ProjectMember.user_id == user_id)
+
+        if visible_to_user_id is not None:
+            own_projects = select(ProjectMember.project_id).where(
+                ProjectMember.user_id == visible_to_user_id,
+                ProjectMember.removed_at.is_(None),
+            )
+            stmt = stmt.where(ProjectMember.project_id.in_(own_projects))
+
+        stmt = stmt.order_by(ProjectMember.added_at, ProjectMember.id)
+
+        if limit is not None:
+            stmt = stmt.limit(limit).offset(offset)
 
         return list(self.db.scalars(stmt))

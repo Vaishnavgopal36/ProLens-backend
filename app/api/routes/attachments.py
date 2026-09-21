@@ -1,18 +1,11 @@
 import uuid
-from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.core import storage
-from app.core.config import settings
+from app.api.pagination import Pagination, get_pagination
 from app.core.database import get_db
-from app.models.collaboration import Attachment
-from app.models.project import Feature, Project
-from app.models.task import Activity, Task
-from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.attachment import (
     AttachmentCreate,
@@ -22,11 +15,16 @@ from app.schemas.attachment import (
     AttachmentUploadUrl,
 )
 from app.schemas.common_response import APIResponse, success_response
+from app.services.attachment_service import AttachmentService
 
 router = APIRouter(
     prefix="/attachments",
     tags=["attachments"],
 )
+
+
+def get_attachment_service(db: Session = Depends(get_db)) -> AttachmentService:
+    return AttachmentService(db)
 
 
 @router.post(
@@ -36,29 +34,14 @@ router = APIRouter(
 def create_upload_url(
     payload: AttachmentUploadRequest,
     caller: User = Depends(get_current_user),
+    service: AttachmentService = Depends(get_attachment_service),
 ) -> APIResponse[AttachmentUploadUrl]:
-    """Step 1: get a presigned URL. The client PUTs the file to it with the
-    same Content-Type, then calls POST /attachments with the returned key."""
-    if caller.organization_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User does not belong to an organization",
-        )
-    if payload.size_bytes > settings.ATTACHMENT_MAX_SIZE_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File exceeds {settings.ATTACHMENT_MAX_SIZE_BYTES} bytes",
-        )
+    upload = service.create_upload_url(payload=payload, caller=caller)
 
-    key = storage.build_object_key(caller.organization_id, payload.file_name)
     return success_response(
         status_code=status.HTTP_200_OK,
         status_message="Upload URL generated successfully",
-        response_data=AttachmentUploadUrl(
-            upload_url=storage.create_upload_url(key, payload.mime_type),
-            s3_key=key,
-            expires_in=settings.ATTACHMENT_URL_EXPIRE_SECONDS,
-        ),
+        response_data=upload,
     )
 
 
@@ -71,63 +54,9 @@ def create_attachment(
     payload: AttachmentCreate,
     db: Session = Depends(get_db),
     caller: User = Depends(get_current_user),
+    service: AttachmentService = Depends(get_attachment_service),
 ) -> APIResponse[AttachmentRead]:
-    # Step 2: the file must already be in storage, under the caller's org
-    # prefix, and match the declared size.
-    if caller.organization_id is None or not storage.key_belongs_to_org(
-        payload.s3_key, caller.organization_id
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid s3_key"
-        )
-    if db.scalar(select(Attachment.id).where(Attachment.s3_key == payload.s3_key)):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="This file is already registered as an attachment",
-        )
-    # RLS-scoped lookup: the target must exist inside the caller's org.
-    for model, target_id in (
-        (Project, payload.project_id),
-        (Feature, payload.feature_id),
-        (Task, payload.task_id),
-        (Activity, payload.activity_id),
-    ):
-        if target_id is not None and db.get(model, target_id) is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Attachment target not found",
-            )
-    stored_size = storage.get_object_size(payload.s3_key)
-    if stored_size is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File has not been uploaded",
-        )
-    if stored_size != payload.size_bytes or stored_size > (
-        settings.ATTACHMENT_MAX_SIZE_BYTES
-    ):
-        storage.delete_object(payload.s3_key)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Uploaded file size does not match or exceeds the limit",
-        )
-
-    attachment = Attachment(
-        organization_id=caller.organization_id,
-        uploaded_by=caller.id,
-        project_id=payload.project_id,
-        feature_id=payload.feature_id,
-        task_id=payload.task_id,
-        activity_id=payload.activity_id,
-        file_name=payload.file_name,
-        s3_key=payload.s3_key,
-        size_bytes=payload.size_bytes,
-        mime_type=payload.mime_type,
-    )
-
-    db.add(attachment)
-    db.flush()
-    db.refresh(attachment)
+    attachment = service.create_attachment(payload=payload, caller=caller)
     db.commit()
 
     return success_response(
@@ -148,30 +77,19 @@ def list_attachments(
     task_id: uuid.UUID | None = None,
     activity_id: uuid.UUID | None = None,
     uploaded_by: uuid.UUID | None = None,
-    db: Session = Depends(get_db),
+    pagination: Pagination = Depends(get_pagination),
     _: User = Depends(get_current_user),
+    service: AttachmentService = Depends(get_attachment_service),
 ) -> APIResponse[list[AttachmentRead]]:
-    stmt = select(Attachment).where(Attachment.deleted_at.is_(None))
-
-    if id is not None:
-        stmt = stmt.where(Attachment.id == id)
-
-    if project_id is not None:
-        stmt = stmt.where(Attachment.project_id == project_id)
-
-    if feature_id is not None:
-        stmt = stmt.where(Attachment.feature_id == feature_id)
-
-    if task_id is not None:
-        stmt = stmt.where(Attachment.task_id == task_id)
-
-    if activity_id is not None:
-        stmt = stmt.where(Attachment.activity_id == activity_id)
-
-    if uploaded_by is not None:
-        stmt = stmt.where(Attachment.uploaded_by == uploaded_by)
-
-    attachments = list(db.scalars(stmt))
+    attachments = service.list_attachments(
+        pagination=pagination,
+        attachment_id=id,
+        project_id=project_id,
+        feature_id=feature_id,
+        task_id=task_id,
+        activity_id=activity_id,
+        uploaded_by=uploaded_by,
+    )
 
     return success_response(
         status_code=status.HTTP_200_OK,
@@ -186,26 +104,15 @@ def list_attachments(
 )
 def get_download_url(
     attachment_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    caller: User = Depends(get_current_user),
+    service: AttachmentService = Depends(get_attachment_service),
 ) -> APIResponse[AttachmentDownloadUrl]:
-    attachment = db.get(Attachment, attachment_id)
-
-    if attachment is None or attachment.deleted_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Attachment not found",
-        )
+    download = service.get_download_url(attachment_id=attachment_id, caller=caller)
 
     return success_response(
         status_code=status.HTTP_200_OK,
         status_message="Download URL generated successfully",
-        response_data=AttachmentDownloadUrl(
-            download_url=storage.create_download_url(
-                attachment.s3_key, attachment.file_name
-            ),
-            expires_in=settings.ATTACHMENT_URL_EXPIRE_SECONDS,
-        ),
+        response_data=download,
     )
 
 
@@ -218,24 +125,9 @@ def delete_attachment(
     attachment_id: uuid.UUID,
     db: Session = Depends(get_db),
     caller: User = Depends(get_current_user),
+    service: AttachmentService = Depends(get_attachment_service),
 ) -> APIResponse[None]:
-    attachment = db.get(Attachment, attachment_id)
-
-    if attachment is None or attachment.deleted_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Attachment not found",
-        )
-
-    if caller.id != attachment.uploaded_by and caller.role != UserRole.admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions",
-        )
-
-    attachment.deleted_at = datetime.now(timezone.utc)
-    attachment.deleted_by = caller.id
-
+    service.delete_attachment(attachment_id=attachment_id, caller=caller)
     db.commit()
 
     return success_response(

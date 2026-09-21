@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.core.exception import (
+    AppException,
     FeatureMutationForbiddenError,
     FeatureNotFoundError,
     MustBelongToOrganizationError,
@@ -18,7 +19,6 @@ from app.schemas.feature import FeatureCreate, FeatureUpdate
 
 
 class FeatureService:
-
     def __init__(self, db: Session):
         self.db = db
         self.features = FeatureRepository(db)
@@ -54,7 +54,7 @@ class FeatureService:
         project_id: uuid.UUID,
     ) -> None:
 
-        if caller.role == UserRole.admin:
+        if caller.role in (UserRole.admin, UserRole.super_admin):
             return
 
         if caller.role == UserRole.manager:
@@ -96,15 +96,26 @@ class FeatureService:
     def list_features(
         self,
         *,
+        caller: User,
         id: uuid.UUID | None = None,
         project_id: uuid.UUID | None = None,
         status: EntityStatus | None = None,
+        limit: int = 100,
+        offset: int = 0,
     ) -> list[Feature]:
+        """List visible features.
+
+        Visibility: admins see every feature of the organization; managers and
+        employees only features of projects they are an active member of.
+        """
 
         return self.features.list_filtered(
+            caller=caller,
             id=id,
             project_id=project_id,
             status=status,
+            limit=limit,
+            offset=offset,
         )
 
     def update_feature(
@@ -149,6 +160,13 @@ class FeatureService:
             caller=caller,
             project_id=feature.project_id,
         )
+
+        if self.features.count_active_tasks(feature.id) > 0:
+            raise AppException(
+                "Feature has active tasks and cannot be deleted",
+                status_code=409,
+                status_message="Conflict",
+            )
 
         feature.deleted_at = datetime.now(timezone.utc)
         feature.deleted_by = caller.id

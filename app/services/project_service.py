@@ -1,24 +1,30 @@
+import uuid
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
-from app.repositories.project_repository import ProjectRepository
-from app.models.user import User, UserRole
-from app.schemas.project import ProjectCreate, ProjectUpdate
-from app.models.project import Project
-from app.models.enums import ProjectStatus
+
 from app.core.exception import (
+    AppException,
     MustBelongToOrganizationError,
     ProjectHasTasksError,
     ProjectMutationForbiddenError,
     ProjectNotFoundError,
 )
-import uuid
-from datetime import datetime, timezone
+from app.models.enums import ProjectStatus, UserRole
+from app.models.project import Project, ProjectMember
+from app.models.user import User
+from app.repositories.feature_repository import FeatureRepository
+from app.repositories.project_member_repository import ProjectMemberRepository
+from app.repositories.project_repository import ProjectRepository
+from app.schemas.project import ProjectCreate, ProjectUpdate
 
 
 class ProjectService:
-
     def __init__(self, db: Session):
         self.db = db
         self.projects = ProjectRepository(db)
+        self.project_members = ProjectMemberRepository(db)
+        self.features = FeatureRepository(db)
 
     def _get_project(
         self,
@@ -37,8 +43,9 @@ class ProjectService:
         caller: User,
         project: Project,
     ) -> None:
+        """Admins may mutate any project; managers only projects they belong to."""
 
-        if caller.role == UserRole.admin:
+        if caller.role in (UserRole.admin, UserRole.super_admin):
             return
 
         if caller.role == UserRole.manager:
@@ -55,6 +62,11 @@ class ProjectService:
         caller: User,
         payload: ProjectCreate,
     ) -> Project:
+        """Create the project and enrol its creator as an active member.
+
+        Without the membership a manager who creates a project would be locked
+        out of it (managers may only mutate projects they belong to).
+        """
 
         if caller.organization_id is None:
             raise MustBelongToOrganizationError()
@@ -74,20 +86,44 @@ class ProjectService:
 
         project = self.projects.add(project)
 
+        self.project_members.add(
+            ProjectMember(
+                organization_id=caller.organization_id,
+                project_id=project.id,
+                user_id=caller.id,
+                added_by=caller.id,
+            )
+        )
+
         return project
 
     def list_projects(
         self,
         *,
+        caller: User,
         id: uuid.UUID | None = None,
         status: ProjectStatus | None = None,
         organization_id: uuid.UUID | None = None,
+        limit: int = 100,
+        offset: int = 0,
     ) -> list[Project]:
+        """List visible projects.
+
+        Visibility: admins see every project of the organization; managers and
+        employees only projects they are an active member of. The
+        ``organization_id`` filter is honored for super_admin only.
+        """
+
+        if caller.role != UserRole.super_admin:
+            organization_id = None
 
         return self.projects.list_filtered(
+            caller=caller,
             id=id,
             status=status,
             organization_id=organization_id,
+            limit=limit,
+            offset=offset,
         )
 
     def update_project(
@@ -105,6 +141,15 @@ class ProjectService:
         )
 
         update_data = payload.model_dump(exclude_unset=True)
+
+        start = update_data.get("start_date", project.start_date)
+        end = update_data.get("end_date", project.end_date)
+        if start is not None and end is not None and start > end:
+            raise AppException(
+                "start_date must be on or before end_date",
+                status_code=422,
+                status_message="Unprocessable Entity",
+            )
 
         for field, value in update_data.items():
             setattr(
@@ -125,6 +170,7 @@ class ProjectService:
         project_id: uuid.UUID,
         caller: User,
     ) -> None:
+        """Soft-delete a project without tasks, together with its (empty) features."""
 
         project = self._get_project(project_id)
 
@@ -138,7 +184,13 @@ class ProjectService:
         if task_count > 0:
             raise ProjectHasTasksError()
 
-        project.deleted_at = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc)
+
+        for feature in self.features.list_active_by_project(project_id):
+            feature.deleted_at = now
+            feature.deleted_by = caller.id
+
+        project.deleted_at = now
         project.deleted_by = caller.id
 
         self.db.flush()

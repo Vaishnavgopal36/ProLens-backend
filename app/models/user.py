@@ -3,7 +3,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
-from sqlalchemy import DateTime, ForeignKey, Index, String, text,CheckConstraint
+
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, func, text
 from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -53,12 +54,13 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         back_populates="user", uselist=False
     )
 
-    __table_args__ = (Index("idx_users_org_role", "organization_id", "role"),
-                      CheckConstraint(
-                        "role != 'employee' OR designation_id IS NOT NULL",
-                        name="ck_users_employee_requires_designation",
-                    ),
-        )
+    __table_args__ = (
+        Index("idx_users_org_role", "organization_id", "role"),
+        CheckConstraint(
+            "role != 'employee' OR designation_id IS NOT NULL",
+            name="ck_users_employee_requires_designation",
+        ),
+    )
 
 
 class UserPreference(Base):
@@ -74,7 +76,10 @@ class UserPreference(Base):
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=text("now()")
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+        onupdate=func.now(),
     )
 
     user: Mapped[User] = relationship(back_populates="preferences")

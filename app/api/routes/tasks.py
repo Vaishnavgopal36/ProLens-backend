@@ -5,6 +5,7 @@ from fastapi import status as http_status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.api.pagination import Pagination, get_pagination
 from app.core.database import get_db
 from app.models.enums import EntityStatus, PriorityLevel
 from app.models.user import User
@@ -18,7 +19,9 @@ router = APIRouter(
 )
 
 
-@router.post("", response_model=APIResponse[TaskRead], status_code=http_status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=APIResponse[TaskRead], status_code=http_status.HTTP_201_CREATED
+)
 def create_task(
     payload: TaskCreate,
     db: Session = Depends(get_db),
@@ -40,10 +43,19 @@ def list_tasks(
     feature_id: uuid.UUID | None = None,
     status: EntityStatus | None = None,
     priority: PriorityLevel | None = None,
+    pagination: Pagination = Depends(get_pagination),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    caller: User = Depends(get_current_user),
 ) -> APIResponse[list[TaskRead]]:
-    tasks = TaskService(db).list_tasks(id=id, feature_id=feature_id, status=status, priority=priority)
+    tasks = TaskService(db).list_tasks(
+        caller=caller,
+        id=id,
+        feature_id=feature_id,
+        status=status,
+        priority=priority,
+        limit=pagination.limit,
+        offset=pagination.offset,
+    )
 
     return success_response(
         status_code=http_status.HTTP_200_OK,
@@ -69,7 +81,9 @@ def update_task(
     )
 
 
-@router.delete("/{task_id}", response_model=APIResponse[None], status_code=http_status.HTTP_200_OK)
+@router.delete(
+    "/{task_id}", response_model=APIResponse[None], status_code=http_status.HTTP_200_OK
+)
 def delete_task(
     task_id: uuid.UUID,
     db: Session = Depends(get_db),

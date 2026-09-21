@@ -7,8 +7,9 @@ from fastapi import status as http_status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
+from app.api.pagination import Pagination, get_pagination
 from app.core.database import get_db
-from app.models.enums import UserRole, UserRoleFilter, UserStatus
+from app.models.enums import UserRole, UserStatus
 from app.models.user import User
 from app.schemas.common_response import APIResponse, success_response
 from app.schemas.user import UserCreate, UserRead, UserUpdate
@@ -48,8 +49,9 @@ def list_users(
     organization_id: uuid.UUID | None = None,
     role: UserRole | None = None,
     status: UserStatus | None = None,
+    pagination: Pagination = Depends(get_pagination),
     db: Session = Depends(get_db),
-    caller: User = Depends(require_admin),   
+    caller: User = Depends(require_admin),
 ) -> APIResponse[list[UserRead]]:
     users = UserService(db).list_users(
         caller,
@@ -57,6 +59,8 @@ def list_users(
         organization_id=organization_id,
         role=role,
         status=status,
+        limit=pagination.limit,
+        offset=pagination.offset,
     )
 
     return success_response(
@@ -71,7 +75,8 @@ def update_user(
     user_id: uuid.UUID,
     payload: UserUpdate,
     db: Session = Depends(get_db),
-    caller: User = Depends(get_current_user),   # ← was require_admin
+    # Any authenticated user; UserService decides what each role may edit.
+    caller: User = Depends(get_current_user),
 ) -> APIResponse[UserRead]:
     user = UserService(db).update_user(caller, user_id, payload)
     db.commit()

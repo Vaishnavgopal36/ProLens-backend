@@ -7,6 +7,7 @@ from fastapi import status as http_status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_roles
+from app.api.pagination import Pagination, get_pagination
 from app.core.database import get_db
 from app.models.enums import OrgStatus, UserRole
 from app.models.user import User
@@ -53,10 +54,16 @@ def create_organization(
 def list_organizations(
     id: uuid.UUID | None = None,
     status: OrgStatus | None = None,
+    pagination: Pagination = Depends(get_pagination),
     db: Session = Depends(get_db),
     _=Depends(require_super_admin),
 ) -> APIResponse[list[OrganizationRead]]:
-    organizations = OrganizationService(db).list_organizations(id=id, status=status)
+    organizations = OrganizationService(db).list_organizations(
+        id=id,
+        status=status,
+        limit=pagination.limit,
+        offset=pagination.offset,
+    )
 
     return success_response(
         status_code=http_status.HTTP_200_OK,

@@ -1,24 +1,17 @@
-from app.models.user import User
-from sqlalchemy.orm import Session
-from app.schemas.project import ProjectCreate, ProjectRead
-from fastapi import Depends, APIRouter, status as http_status
-from app.api.deps import require_roles
-from app.models.enums import UserRole, ProjectStatus
-from app.schemas.common_response import success_response, APIResponse
-from app.core.database import get_db
-from app.models.enums import UserRole
-from app.models.user import User
-from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
-from app.schemas.common_response import APIResponse, success_response
-from app.services.project_service import ProjectService
 import uuid
+
+from fastapi import APIRouter, Depends
+from fastapi import status as http_status
+from sqlalchemy.orm import Session
+
 from app.api.deps import get_current_user, require_roles
-
-router = APIRouter(
-    prefix="/projects",
-    tags=["projects"],
-)
-
+from app.api.pagination import Pagination, get_pagination
+from app.core.database import get_db
+from app.models.enums import ProjectStatus, UserRole
+from app.models.user import User
+from app.schemas.common_response import APIResponse, success_response
+from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
+from app.services.project_service import ProjectService
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -61,16 +54,20 @@ def list_projects(
     id: uuid.UUID | None = None,
     status: ProjectStatus | None = None,
     organization_id: uuid.UUID | None = None,
+    pagination: Pagination = Depends(get_pagination),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    caller: User = Depends(get_current_user),
 ) -> APIResponse[list[ProjectRead]]:
 
     service = ProjectService(db)
 
     projects = service.list_projects(
+        caller=caller,
         id=id,
         status=status,
         organization_id=organization_id,
+        limit=pagination.limit,
+        offset=pagination.offset,
     )
 
     return success_response(

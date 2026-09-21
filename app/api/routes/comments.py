@@ -1,22 +1,24 @@
 import uuid
-from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.api.pagination import Pagination, get_pagination
 from app.core.database import get_db
-from app.models.collaboration import Comment
-from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.comment import CommentCreate, CommentRead, CommentUpdate
 from app.schemas.common_response import APIResponse, success_response
+from app.services.comment_service import CommentService
 
 router = APIRouter(
     prefix="/comments",
     tags=["comments"],
 )
+
+
+def get_comment_service(db: Session = Depends(get_db)) -> CommentService:
+    return CommentService(db)
 
 
 @router.post(
@@ -28,21 +30,9 @@ def create_comment(
     payload: CommentCreate,
     db: Session = Depends(get_db),
     caller: User = Depends(get_current_user),
+    service: CommentService = Depends(get_comment_service),
 ) -> APIResponse[CommentRead]:
-    comment = Comment(
-        organization_id=caller.organization_id,
-        author_id=caller.id,
-        parent_comment_id=payload.parent_comment_id,
-        project_id=payload.project_id,
-        feature_id=payload.feature_id,
-        task_id=payload.task_id,
-        activity_id=payload.activity_id,
-        content=payload.content,
-    )
-
-    db.add(comment)
-    db.flush()
-    db.refresh(comment)
+    comment = service.create_comment(payload=payload, caller=caller)
     db.commit()
 
     return success_response(
@@ -63,30 +53,19 @@ def list_comments(
     task_id: uuid.UUID | None = None,
     activity_id: uuid.UUID | None = None,
     author_id: uuid.UUID | None = None,
-    db: Session = Depends(get_db),
+    pagination: Pagination = Depends(get_pagination),
     _: User = Depends(get_current_user),
+    service: CommentService = Depends(get_comment_service),
 ) -> APIResponse[list[CommentRead]]:
-    stmt = select(Comment).where(Comment.deleted_at.is_(None))
-
-    if id is not None:
-        stmt = stmt.where(Comment.id == id)
-
-    if project_id is not None:
-        stmt = stmt.where(Comment.project_id == project_id)
-
-    if feature_id is not None:
-        stmt = stmt.where(Comment.feature_id == feature_id)
-
-    if task_id is not None:
-        stmt = stmt.where(Comment.task_id == task_id)
-
-    if activity_id is not None:
-        stmt = stmt.where(Comment.activity_id == activity_id)
-
-    if author_id is not None:
-        stmt = stmt.where(Comment.author_id == author_id)
-
-    comments = list(db.scalars(stmt))
+    comments = service.list_comments(
+        pagination=pagination,
+        comment_id=id,
+        project_id=project_id,
+        feature_id=feature_id,
+        task_id=task_id,
+        activity_id=activity_id,
+        author_id=author_id,
+    )
 
     return success_response(
         status_code=status.HTTP_200_OK,
@@ -104,25 +83,11 @@ def update_comment(
     payload: CommentUpdate,
     db: Session = Depends(get_db),
     caller: User = Depends(get_current_user),
+    service: CommentService = Depends(get_comment_service),
 ) -> APIResponse[CommentRead]:
-    comment = db.get(Comment, comment_id)
-
-    if comment is None or comment.deleted_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Comment not found",
-        )
-
-    if caller.id != comment.author_id and caller.role != UserRole.admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions",
-        )
-
-    comment.content = payload.content
-
-    db.flush()
-    db.refresh(comment)
+    comment = service.update_comment(
+        comment_id=comment_id, payload=payload, caller=caller
+    )
     db.commit()
 
     return success_response(
@@ -141,24 +106,9 @@ def delete_comment(
     comment_id: uuid.UUID,
     db: Session = Depends(get_db),
     caller: User = Depends(get_current_user),
+    service: CommentService = Depends(get_comment_service),
 ) -> APIResponse[None]:
-    comment = db.get(Comment, comment_id)
-
-    if comment is None or comment.deleted_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Comment not found",
-        )
-
-    if caller.id != comment.author_id and caller.role != UserRole.admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions",
-        )
-
-    comment.deleted_at = datetime.now(timezone.utc)
-    comment.deleted_by = caller.id
-
+    service.delete_comment(comment_id=comment_id, caller=caller)
     db.commit()
 
     return success_response(

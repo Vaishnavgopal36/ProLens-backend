@@ -1,14 +1,13 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.api.pagination import Pagination, get_pagination
 from app.core.database import get_db
-from app.models.enums import CalendarEventType, UserRole
-from app.models.timesheet import CalendarEvent
+from app.models.enums import CalendarEventType
 from app.models.user import User
 from app.schemas.calendar_event import (
     CalendarEventCreate,
@@ -16,11 +15,16 @@ from app.schemas.calendar_event import (
     CalendarEventUpdate,
 )
 from app.schemas.common_response import APIResponse, success_response
+from app.services.calendar_event_service import CalendarEventService
 
 router = APIRouter(
     prefix="/calendar-events",
     tags=["calendar-events"],
 )
+
+
+def get_calendar_event_service(db: Session = Depends(get_db)) -> CalendarEventService:
+    return CalendarEventService(db)
 
 
 @router.post(
@@ -32,29 +36,9 @@ def create_calendar_event(
     payload: CalendarEventCreate,
     db: Session = Depends(get_db),
     caller: User = Depends(get_current_user),
+    service: CalendarEventService = Depends(get_calendar_event_service),
 ) -> APIResponse[CalendarEventRead]:
-    if (
-        payload.event_type == CalendarEventType.holiday
-        and caller.role != UserRole.admin
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Admin can create holiday events",
-        )
-
-    event = CalendarEvent(
-        organization_id=caller.organization_id,
-        title=payload.title,
-        description=payload.description,
-        event_type=payload.event_type,
-        start_time=payload.start_time,
-        end_time=payload.end_time,
-        created_by=caller.id,
-    )
-
-    db.add(event)
-    db.flush()
-    db.refresh(event)
+    event = service.create_event(payload=payload, caller=caller)
     db.commit()
 
     return success_response(
@@ -73,37 +57,25 @@ def list_calendar_events(
     event_type: CalendarEventType | None = None,
     start_time: datetime | None = None,
     end_time: datetime | None = None,
-    db: Session = Depends(get_db),
+    pagination: Pagination = Depends(get_pagination),
     _: User = Depends(get_current_user),
+    service: CalendarEventService = Depends(get_calendar_event_service),
 ) -> APIResponse[list[CalendarEventRead]]:
-    stmt = select(CalendarEvent).where(CalendarEvent.deleted_at.is_(None))
-
-    if id is not None:
-        stmt = stmt.where(CalendarEvent.id == id)
-
-    if event_type is not None:
-        stmt = stmt.where(CalendarEvent.event_type == event_type)
-
-    if start_time is not None:
-        stmt = stmt.where(CalendarEvent.start_time >= start_time)
-
-    if end_time is not None:
-        stmt = stmt.where(CalendarEvent.end_time <= end_time)
-
-    events = list(db.scalars(stmt))
+    # start_time / end_time delimit the queried range; events overlapping it
+    # (not only those fully inside it) are returned.
+    events = service.list_events(
+        pagination=pagination,
+        event_id=id,
+        event_type=event_type,
+        range_start=start_time,
+        range_end=end_time,
+    )
 
     return success_response(
         status_code=status.HTTP_200_OK,
         status_message="Calendar events retrieved successfully",
         response_data=events,
     )
-
-
-def _can_modify(
-    caller: User,
-    event: CalendarEvent,
-) -> bool:
-    return caller.role == UserRole.admin or event.created_by == caller.id
 
 
 @router.patch(
@@ -115,36 +87,9 @@ def update_calendar_event(
     payload: CalendarEventUpdate,
     db: Session = Depends(get_db),
     caller: User = Depends(get_current_user),
+    service: CalendarEventService = Depends(get_calendar_event_service),
 ) -> APIResponse[CalendarEventRead]:
-    event = db.get(CalendarEvent, event_id)
-
-    if event is None or event.deleted_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Calendar event not found",
-        )
-
-    if not _can_modify(caller, event):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions",
-        )
-
-    new_event_type = (
-        payload.event_type if payload.event_type is not None else event.event_type
-    )
-
-    if new_event_type == CalendarEventType.holiday and caller.role != UserRole.admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only Admin can set holiday events",
-        )
-
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        setattr(event, field, value)
-
-    db.flush()
-    db.refresh(event)
+    event = service.update_event(event_id=event_id, payload=payload, caller=caller)
     db.commit()
 
     return success_response(
@@ -163,24 +108,9 @@ def delete_calendar_event(
     event_id: uuid.UUID,
     db: Session = Depends(get_db),
     caller: User = Depends(get_current_user),
+    service: CalendarEventService = Depends(get_calendar_event_service),
 ) -> APIResponse[None]:
-    event = db.get(CalendarEvent, event_id)
-
-    if event is None or event.deleted_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Calendar event not found",
-        )
-
-    if not _can_modify(caller, event):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient permissions",
-        )
-
-    event.deleted_at = datetime.now(timezone.utc)
-    event.deleted_by = caller.id
-
+    service.delete_event(event_id=event_id, caller=caller)
     db.commit()
 
     return success_response(
