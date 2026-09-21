@@ -64,8 +64,8 @@ class ProjectService:
     ) -> Project:
         """Create the project and enrol its creator as an active member.
 
-        Without the membership a manager who creates a project would be locked
-        out of it (managers may only mutate projects they belong to).
+        Creation is admin-only (enforced at the route); membership keeps the
+        creator able to see and work in the project they just made.
         """
 
         if caller.organization_id is None:

@@ -15,7 +15,9 @@ from app.services.project_service import ProjectService
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
-require_creator = require_roles(UserRole.admin, UserRole.manager)
+# Creating a project is portfolio ownership, so it is admin-only. Managers run
+# delivery on projects they belong to and can staff them with employees.
+require_creator = require_roles(UserRole.admin)
 
 
 @router.post(

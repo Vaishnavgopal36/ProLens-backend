@@ -48,7 +48,7 @@ def project():
 # ---- 2. creator becomes a member ----
 
 
-@pytest.mark.parametrize("role", [UserRole.manager, UserRole.admin])
+@pytest.mark.parametrize("role", [UserRole.admin])
 def test_create_project_adds_creator_as_member(role):
     caller = make_user(role)
     svc = make_service()
@@ -78,6 +78,11 @@ def test_create_project_requires_organization():
 
 def test_create_project_route_rejects_employee(make_client):
     client = make_client(UserRole.employee)
+    assert client.post("/projects", json={"name": "P"}).status_code == 403
+
+
+def test_create_project_route_rejects_manager(make_client):
+    client = make_client(UserRole.manager)
     assert client.post("/projects", json={"name": "P"}).status_code == 403
 
 
