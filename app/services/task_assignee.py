@@ -1,5 +1,6 @@
 import uuid
 from fastapi import HTTPException, status
+from app.core.exception import EmployeeOnLeaveError  
 
 from app.models.enums import UserRole
 from app.models.task import Task, TaskAssignee
@@ -31,6 +32,7 @@ class TaskAssigneeService:
 
         return False
 
+
     def create_assignee(
         self, payload: TaskAssigneeCreate, caller: User
     ) -> TaskAssignee:
@@ -47,6 +49,11 @@ class TaskAssigneeService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Insufficient permissions",
             )
+
+        if task.due_date is not None:
+            conflict = self.repo.get_conflicting_leave(payload.user_id, task.due_date)
+            if conflict is not None:
+                raise EmployeeOnLeaveError()
 
         existing = self.repo.get_active_assignee(
             task_id=payload.task_id, user_id=payload.user_id

@@ -1,12 +1,12 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone  
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.project import Feature, ProjectMember
 from app.models.task import Task, TaskAssignee
 from app.models.user import User
-
+from app.models.timesheet import LeaveLog 
 
 class TaskAssigneeRepository:
 
@@ -92,3 +92,15 @@ class TaskAssigneeRepository:
         assignee.removed_at = datetime.now(timezone.utc)
         assignee.removed_by = removed_by
         self.db.commit()
+
+    def get_conflicting_leave(
+        self, user_id: uuid.UUID, due_date: date
+    ) -> LeaveLog | None:
+        return self.db.scalar(
+            select(LeaveLog).where(
+                LeaveLog.user_id == user_id,
+                LeaveLog.deleted_at.is_(None),
+                LeaveLog.start_date <= due_date,
+                LeaveLog.end_date >= due_date - timedelta(days=1),
+            )
+        )

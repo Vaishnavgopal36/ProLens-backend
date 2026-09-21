@@ -199,22 +199,10 @@ class TaskNotFoundError(AppException):
     status_code = 404
     default_message = "Task not found"
 
-
-# ---------------------------------------------------------
-# General organization/project rule
-# ---------------------------------------------------------
-
-
 class MustBelongToOrganizationError(AppException):
     status_code = 403
     status_message = "Forbidden"
     default_message = "Must belong to an organization"
-
-
-# ---------------------------------------------------------
-# Project
-# ---------------------------------------------------------
-
 
 class ProjectNotFoundError(AppException):
     status_code = 404
@@ -238,12 +226,6 @@ class ProjectHasTasksError(AppException):
     status_code = 409
     status_message = "Conflict"
     default_message = "Project has associated tasks and cannot be deleted"
-
-
-# ---------------------------------------------------------
-# Project Member
-# ---------------------------------------------------------
-
 
 class ProjectMemberNotFoundError(AppException):
     status_code = 404
@@ -294,11 +276,6 @@ class ProjectMembershipRequiredError(AppException):
     default_message = "User must be a project member before being assigned to a feature"
 
 
-# ---------------------------------------------------------
-# Feature Member
-# ---------------------------------------------------------
-
-
 class FeatureMemberNotFoundError(AppException):
     status_code = 404
     status_message = "Not Found"
@@ -315,3 +292,8 @@ class FeatureMemberMutationForbiddenError(AppException):
     status_code = 403
     status_message = "Forbidden"
     default_message = "Insufficient permissions"
+    
+class EmployeeOnLeaveError(AppException):
+    status_code = 409
+    status_message = "Conflict"
+    default_message = "Employee is on leave and cannot complete this task by its due date"
