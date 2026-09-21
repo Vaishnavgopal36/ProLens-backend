@@ -12,6 +12,7 @@ def _check_dates(start: date | None, due: date | None) -> None:
 
 
 class TaskCreate(BaseModel):
+    project_id: uuid.UUID | None = None
     feature_id: uuid.UUID | None = None
     name: str = Field(min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=10_000)
@@ -26,6 +27,7 @@ class TaskCreate(BaseModel):
 
 
 class TaskUpdate(BaseModel):
+    project_id: uuid.UUID | None = None
     feature_id: uuid.UUID | None = None
     name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=10_000)
@@ -46,6 +48,7 @@ class TaskUpdate(BaseModel):
 class TaskRead(BaseModel):
     id: uuid.UUID
     organization_id: uuid.UUID
+    project_id: uuid.UUID | None
     feature_id: uuid.UUID | None
     name: str
     description: str | None
