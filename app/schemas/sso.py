@@ -7,7 +7,6 @@ from app.models.enums import SSOProvider
 
 
 class SSOConnectionCreate(BaseModel):
-    organization_id: uuid.UUID | None = None
     provider: SSOProvider = SSOProvider.azure_ad
     tenant_id: str
     client_id: str

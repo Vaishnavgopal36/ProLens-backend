@@ -7,9 +7,14 @@ from app.models.sso import SSOConnection
 def get_sso_client(connection: SSOConnection):
     if connection.provider == SSOProvider.azure_ad:
         return AzureADClient(
-            connection.tenant_id, connection.client_id, connection.client_secret
+            client_id=connection.client_id,
+            client_secret=connection.client_secret,
+            tenant_id=connection.tenant_id or "organizations",
         )
     if connection.provider == SSOProvider.google:
-        return GoogleClient(connection.client_id, connection.client_secret)
+        return GoogleClient(
+            client_id=connection.client_id,
+            client_secret=connection.client_secret,
+        )
 
     raise ValueError(f"Unsupported SSO provider: {connection.provider}")
