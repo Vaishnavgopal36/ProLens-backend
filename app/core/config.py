@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     MIGRATION_DATABASE_URL: str
     APP_DATABASE_URL: str
 
+    APP_TIMEZONE: str = "Asia/Kolkata"
+
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30

@@ -3,25 +3,28 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 from typing import TYPE_CHECKING
+from decimal import Decimal
 
 from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
+    UniqueConstraint,
     Index,
+    Numeric,
     Integer,
     String,
     Text,
     text,
 )
 from sqlalchemy.dialects.postgresql import ENUM as PgEnum
-from sqlalchemy.dialects.postgresql import UUID, ExcludeConstraint
+from sqlalchemy.dialects.postgresql import UUID, ExcludeConstraint, INT4RANGE
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.models.base import SoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMixin
-from app.models.enums import CalendarEventType, LeaveType
+from app.models.enums import CalendarEventType, LeaveType, HalfSlot, LeavePortion
 
 if TYPE_CHECKING:
     from app.models.project import Project
@@ -88,38 +91,188 @@ class TimeLog(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     )
 
 
-class LeaveLog(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
+class LeaveLog(
+    Base,
+    UUIDPrimaryKeyMixin,
+    TimestampMixin,
+    SoftDeleteMixin,
+):
     __tablename__ = "leave_logs"
 
     organization_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
-    )
-    start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    end_date: Mapped[date] = mapped_column(Date, nullable=False)
-    leave_type: Mapped[LeaveType] = mapped_column(
-        PgEnum(LeaveType, name="leave_type", create_type=False),
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id"),
         nullable=False,
     )
-    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    deleted_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=False,
     )
 
-    # Relationships
+    start_date: Mapped[date] = mapped_column(
+        Date,
+        nullable=False,
+    )
+
+    end_date: Mapped[date] = mapped_column(
+        Date,
+        nullable=False,
+    )
+
+    leave_type: Mapped[LeaveType] = mapped_column(
+        PgEnum(
+            LeaveType,
+            name="leave_type",
+            create_type=False,
+        ),
+        nullable=False,
+    )
+
+    reason: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    total_days: Mapped[Decimal] = mapped_column(
+        Numeric(4, 1),
+        nullable=False,
+    )
+
+    deleted_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=True,
+    )
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+
+    days: Mapped[list["LeaveLogDay"]] = relationship(
+        back_populates="leave_log",
+        order_by="LeaveLogDay.leave_date",
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "start_date <= end_date",
+            name="chk_leave_logs_valid_date_range",
+        ),
+        Index(
+            "idx_leave_logs_user_range",
+            "user_id",
+            "start_date",
+            "end_date",
+        ),
+        Index(
+            "idx_leave_logs_org_range",
+            "organization_id",
+            "start_date",
+            "end_date",
+        ),
+    )
+
+
+class LeaveLogDay(
+    Base,
+    UUIDPrimaryKeyMixin,
+    TimestampMixin,
+    SoftDeleteMixin,
+):
+    __tablename__ = "leave_log_days"
+
+    leave_log_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("leave_logs.id"),
+        nullable=False,
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=False,
+    )
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id"),
+        nullable=False,
+    )
+
+    leave_date: Mapped[date] = mapped_column(
+        Date,
+        nullable=False,
+    )
+
+    portion: Mapped[LeavePortion] = mapped_column(
+        PgEnum(
+            LeavePortion,
+            name="leave_portion",
+            create_type=False,
+        ),
+        nullable=False,
+    )
+
+    half_slot: Mapped[HalfSlot | None] = mapped_column(
+        PgEnum(
+            HalfSlot,
+            name="half_slot",
+            create_type=False,
+        ),
+        nullable=True,
+    )
+
+    slot = mapped_column(
+        INT4RANGE,
+        nullable=False,
+    )
+
+    deleted_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=True,
+    )
+
+    leave_log: Mapped[LeaveLog] = relationship(back_populates="days")
+
     user: Mapped[User] = relationship(foreign_keys=[user_id])
 
     __table_args__ = (
-        # Requires: CREATE EXTENSION IF NOT EXISTS btree_gist; (add as a migration step)
+        CheckConstraint(
+            """
+            (
+                portion = 'full'
+                AND half_slot IS NULL
+            )
+            OR
+            (
+                portion = 'half'
+                AND half_slot IS NOT NULL
+            )
+            """,
+            name="chk_leave_log_days_portion_half_slot",
+        ),
+        UniqueConstraint(
+            "leave_log_id",
+            "leave_date",
+            name="uq_leave_log_days_leave_log_date",
+        ),
+        Index(
+            "idx_leave_log_days_user_date",
+            "user_id",
+            "leave_date",
+        ),
+        Index(
+            "idx_leave_log_days_leave_log",
+            "leave_log_id",
+        ),
         ExcludeConstraint(
             ("user_id", "="),
-            (text("daterange(start_date, end_date, '[]')"), "&&"),
+            ("leave_date", "="),
+            ("slot", "&&"),
             where=text("deleted_at IS NULL"),
-            name="excl_leave_logs_no_overlap",
+            name="excl_leave_log_days_active_overlap",
         ),
-        Index("idx_leave_logs_org_date", "organization_id", "start_date", "end_date"),
     )
 
 
