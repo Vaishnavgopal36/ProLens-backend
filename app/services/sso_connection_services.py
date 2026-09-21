@@ -16,7 +16,11 @@ from app.models.enums import SSOProvider, UserRole, UserStatus
 from app.models.sso import SSOConnection
 from app.models.user import User
 from app.repositories.sso_repository import SSORepository
-from app.schemas.sso import SSOConnectionCreate, SSOSyncResult
+from app.schemas.sso import (
+    SSOConnectionCreate,
+    SSOConnectionUpdate,
+    SSOSyncResult,
+)
 
 
 class SSOConnectionService:
@@ -126,19 +130,34 @@ class SSOConnectionService:
             updated=updated,
         )
 
+    def update_connection(
+        self, caller: User, connection_id: uuid.UUID, payload: SSOConnectionUpdate
+    ) -> SSOConnection:
+        connection = self.connections.get_by_id(connection_id)
+        if connection is None:
+            raise SSOConnectionNotFoundError()
 
+        assert_same_organization(caller, connection.organization_id)
 
-def sync_users(self, caller: User, connection_id: uuid.UUID) -> SSOSyncResult:
-    connection = self.connections.get_by_id(connection_id)
-    if connection is None:
-        raise SSOConnectionNotFoundError()
+        # Blank fields keep the stored value, so the admin doesn't have to
+        # re-enter the client secret just to change the tenant.
+        for field, value in payload.model_dump(exclude_none=True).items():
+            if value != "":
+                setattr(connection, field, value)
+        self.db.flush()
+        return connection
 
-    assert_same_organization(caller, connection.organization_id)
+    def sync_users(self, caller: User, connection_id: uuid.UUID) -> SSOSyncResult:
+        connection = self.connections.get_by_id(connection_id)
+        if connection is None:
+            raise SSOConnectionNotFoundError()
 
-    client = get_sso_client(connection)
-    try:
-        directory_users = client.list_users()
-    except NotImplementedError:
-        raise UnsupportedSSOProviderError()
+        assert_same_organization(caller, connection.organization_id)
 
-    return self._upsert_users_from_directory(connection.organization_id, directory_users)
+        client = get_sso_client(connection)
+        try:
+            directory_users = client.list_users()
+        except NotImplementedError:
+            raise UnsupportedSSOProviderError()
+
+        return self._upsert_users_from_directory(connection.organization_id, directory_users)

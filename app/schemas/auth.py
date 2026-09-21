@@ -30,6 +30,9 @@ class CurrentUser(BaseModel):
     id: uuid.UUID
     organization_id: uuid.UUID | None
     email: str
+    first_name: str | None = None
+    last_name: str | None = None
+    designation: str | None = None
     role: UserRole
 
 

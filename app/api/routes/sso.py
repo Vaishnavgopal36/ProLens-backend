@@ -9,7 +9,12 @@ from app.core.database import get_db
 from app.models.enums import SSOProvider, UserRole
 from app.models.user import User
 from app.schemas.common_response import APIResponse, success_response
-from app.schemas.sso import SSOConnectionCreate, SSOConnectionRead, SSOSyncResult
+from app.schemas.sso import (
+    SSOConnectionCreate,
+    SSOConnectionRead,
+    SSOConnectionUpdate,
+    SSOSyncResult,
+)
 from app.services.sso_connection_services import SSOConnectionService
 
 router = APIRouter(
@@ -56,6 +61,25 @@ def list_connections(
         status_code=http_status.HTTP_200_OK,
         status_message="SSO connections retrieved successfully",
         response_data=connections,
+    )
+
+
+@router.patch("/{connection_id}", response_model=APIResponse[SSOConnectionRead])
+def update_connection(
+    connection_id: uuid.UUID,
+    payload: SSOConnectionUpdate,
+    db: Session = Depends(get_db),
+    caller: User = Depends(require_admin),
+) -> APIResponse[SSOConnectionRead]:
+    connection = SSOConnectionService(db).update_connection(
+        caller, connection_id, payload
+    )
+    db.commit()
+
+    return success_response(
+        status_code=http_status.HTTP_200_OK,
+        status_message="SSO connection updated successfully",
+        response_data=connection,
     )
 
 
