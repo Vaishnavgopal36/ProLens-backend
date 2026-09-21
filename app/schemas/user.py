@@ -22,7 +22,6 @@ def validate_password_policy(value: str) -> str:
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str
     password: str | None = None
     first_name: str | None = Field(default=None, max_length=100)
     last_name: str | None = Field(default=None, max_length=100)
@@ -38,8 +37,6 @@ class UserCreate(BaseModel):
 
     @field_validator("password")
     @classmethod
-    def _check_password(cls, value: str) -> str:
-        return validate_password_policy(value)
     def _check_password(cls, value: str | None) -> str | None:
         return None if value is None else validate_password_policy(value)
 

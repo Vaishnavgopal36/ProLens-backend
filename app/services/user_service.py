@@ -61,6 +61,9 @@ class UserService:
         if payload.organization_id not in (None, caller.organization_id):
             raise CrossOrganizationForbiddenError()
 
+        if caller.organization_id is None:
+            raise OrganizationIdRequiredError()
+
         return caller.organization_id
 
     def _validate_designation(
@@ -93,21 +96,24 @@ class UserService:
         if self.organizations.get_active_by_id(organization_id) is None:
             raise OrganizationNotFoundError()
 
-        if payload.designation_id is not None:
-            self._validate_designation(payload.designation_id, organization_id)
-        self._require_designation_for_employee(payload.role, payload.designation_id)
         # Generate secure random password if not provided
         password = payload.password or secrets.token_urlsafe(16)
 
-        # Resolve designation
+        # Resolve designation (by ID or by name)
         designation_id = payload.designation_id
-        if designation_id is None and payload.designation_name and payload.designation_name.strip():
+        if (
+            designation_id is None
+            and payload.designation_name
+            and payload.designation_name.strip()
+        ):
             desig_name = payload.designation_name.strip()
             existing = self.designations.get_active_by_name(organization_id, desig_name)
             if existing:
                 designation_id = existing.id
             else:
-                new_desig = Designation(organization_id=organization_id, name=desig_name)
+                new_desig = Designation(
+                    organization_id=organization_id, name=desig_name
+                )
                 self.designations.add(new_desig)
                 designation_id = new_desig.id
 
@@ -117,10 +123,8 @@ class UserService:
 
         user = User(
             organization_id=organization_id,
-            designation_id=payload.designation_id,
             designation_id=designation_id,
             email=email,
-            password_hash=hash_password(payload.password),
             password_hash=hash_password(password),
             first_name=payload.first_name,
             last_name=payload.last_name,
@@ -210,7 +214,11 @@ class UserService:
         return True
 
     def _assert_not_last_admin(self, user: User) -> None:
-        if user.role != UserRole.admin or user.status != UserStatus.active:
+        if (
+            user.role != UserRole.admin
+            or user.status != UserStatus.active
+            or user.organization_id is None
+        ):
             return
         remaining = self.users.count_active_admins(
             user.organization_id, exclude_user_id=user.id
