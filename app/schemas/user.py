@@ -23,10 +23,12 @@ def validate_password_policy(value: str) -> str:
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
+    password: str | None = None
     first_name: str | None = Field(default=None, max_length=100)
     last_name: str | None = Field(default=None, max_length=100)
     role: UserRole
     designation_id: uuid.UUID | None = None
+    designation_name: str | None = Field(default=None, max_length=100)
     organization_id: uuid.UUID | None = None
 
     @field_validator("email")
@@ -38,6 +40,8 @@ class UserCreate(BaseModel):
     @classmethod
     def _check_password(cls, value: str) -> str:
         return validate_password_policy(value)
+    def _check_password(cls, value: str | None) -> str | None:
+        return None if value is None else validate_password_policy(value)
 
 
 class UserUpdate(BaseModel):

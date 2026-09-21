@@ -1,3 +1,4 @@
+import secrets
 import uuid
 from datetime import datetime, timezone
 
@@ -20,6 +21,7 @@ from app.core.exception import (
 )
 from app.core.security import hash_password, verify_password
 from app.models.enums import UserRole, UserStatus
+from app.models.tenancy import Designation
 from app.models.user import User
 from app.repositories.designation_repository import DesignationRepository
 from app.repositories.organization_repository import OrganizationRepository
@@ -94,12 +96,32 @@ class UserService:
         if payload.designation_id is not None:
             self._validate_designation(payload.designation_id, organization_id)
         self._require_designation_for_employee(payload.role, payload.designation_id)
+        # Generate secure random password if not provided
+        password = payload.password or secrets.token_urlsafe(16)
+
+        # Resolve designation
+        designation_id = payload.designation_id
+        if designation_id is None and payload.designation_name and payload.designation_name.strip():
+            desig_name = payload.designation_name.strip()
+            existing = self.designations.get_active_by_name(organization_id, desig_name)
+            if existing:
+                designation_id = existing.id
+            else:
+                new_desig = Designation(organization_id=organization_id, name=desig_name)
+                self.designations.add(new_desig)
+                designation_id = new_desig.id
+
+        if designation_id is not None:
+            self._validate_designation(designation_id, organization_id)
+        self._require_designation_for_employee(payload.role, designation_id)
 
         user = User(
             organization_id=organization_id,
             designation_id=payload.designation_id,
+            designation_id=designation_id,
             email=email,
             password_hash=hash_password(payload.password),
+            password_hash=hash_password(password),
             first_name=payload.first_name,
             last_name=payload.last_name,
             role=payload.role,

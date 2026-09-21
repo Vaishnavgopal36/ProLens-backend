@@ -210,3 +210,25 @@ def test_employee_patch_other_user_route_is_403(make_client, db):
     client = make_client(UserRole.employee)
     response = client.patch(f"/users/{uuid.uuid4()}", json={"role": "admin"})
     assert response.status_code in (403, 404)
+
+
+def test_create_user_optional_password_and_designation_name():
+    admin = _u(UserRole.admin)
+    svc = _service()
+    svc.designations.get_active_by_name.return_value = None
+    created_desigs = []
+    svc.designations.add.side_effect = lambda d: (created_desigs.append(d), setattr(d, "id", uuid.uuid4()), d)[2]
+
+    user = svc.create_user(
+        admin,
+        UserCreate(
+            email="invitee@example.com",
+            role=UserRole.employee,
+            designation_name="Frontend Engineer",
+        ),
+    )
+    assert user.email == "invitee@example.com"
+    assert user.password_hash is not None
+    assert user.designation_id is not None
+    assert len(created_desigs) == 1
+    assert created_desigs[0].name == "Frontend Engineer"
