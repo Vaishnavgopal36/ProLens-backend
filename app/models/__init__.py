@@ -1,4 +1,4 @@
-from app.models.collaboration import Attachment, Comment
+from app.models.collaboration import Attachment, Comment, ProjectDiscussionRead
 from app.models.enums import (
     AuditAction,
     CalendarEventType,
@@ -61,6 +61,7 @@ __all__ = [
     # Collaboration
     "Comment",
     "Attachment",
+    "ProjectDiscussionRead",
     # Timesheet & Scheduling
     "TimeLog",
     "LeaveLog",

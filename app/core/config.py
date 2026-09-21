@@ -30,7 +30,9 @@ class Settings(BaseSettings):
     LOGIN_RATE_LIMIT_ATTEMPTS: int = 5
     LOGIN_RATE_LIMIT_WINDOW_SECONDS: int = 300
 
-    # Email delivery (worker). SMTP_HOST unset -> emails are logged, not sent.
+    # Email delivery (worker). Precedence: BREVO_API_KEY (HTTPS API), then
+    # SMTP_HOST, otherwise emails are logged, not sent.
+    BREVO_API_KEY: str | None = None
     SMTP_HOST: str | None = None
     SMTP_PORT: int = 587
     SMTP_USERNAME: str | None = None

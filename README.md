@@ -53,12 +53,13 @@ All settings are defined in `app/core/config.py` and read from the environment o
 | `PASSWORD_MIN_LENGTH` | `8` | Minimum password length (max is 72 bytes, a bcrypt limit). |
 | `LOGIN_RATE_LIMIT_ATTEMPTS` | `5` | Failed logins allowed per client IP + email per window. |
 | `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `300` | Sliding window for the login limiter. |
-| `SMTP_HOST` | unset | SMTP server. When unset, emails are logged instead of sent. |
+| `BREVO_API_KEY` | unset | Brevo API key (v3, `xkeysib-…`). When set, emails go through Brevo's HTTPS API and the SMTP settings are ignored. |
+| `SMTP_HOST` | unset | SMTP server. Used when `BREVO_API_KEY` is unset. When both are unset, emails are logged instead of sent. |
 | `SMTP_PORT` | `587` | SMTP port. |
 | `SMTP_USERNAME` | unset | SMTP user. |
 | `SMTP_PASSWORD` | unset | SMTP password. |
 | `SMTP_USE_TLS` | `true` | Use STARTTLS. |
-| `EMAIL_FROM` | `ProLens <no-reply@prolens.local>` | Sender address. |
+| `EMAIL_FROM` | `ProLens <no-reply@prolens.local>` | Sender address. With Brevo it must be a sender verified in Brevo. |
 | `OUTBOX_POLL_INTERVAL_SECONDS` | `2.0` | Worker poll interval. |
 | `OUTBOX_BATCH_SIZE` | `10` | Outbox rows processed per poll. |
 | `OUTBOX_MAX_ATTEMPTS` | `5` | Delivery attempts before a row is marked failed. |

@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.core.email import (
     EmailMessage,
     LoggingEmailSender,
+    BrevoEmailSender,
     SMTPEmailSender,
     get_email_sender,
 )
@@ -52,13 +53,19 @@ def test_template_escapes_everything():
 
 
 def test_sender_selection(monkeypatch):
+    monkeypatch.setattr(settings, "BREVO_API_KEY", None)
     monkeypatch.setattr(settings, "SMTP_HOST", None)
     assert isinstance(get_email_sender(), LoggingEmailSender)
+    monkeypatch.setattr(settings, "BREVO_API_KEY", "k")
+    assert isinstance(get_email_sender(), BrevoEmailSender)
+    monkeypatch.setattr(settings, "BREVO_API_KEY", None)
     monkeypatch.setattr(settings, "SMTP_HOST", "smtp.example.com")
     assert isinstance(get_email_sender(), SMTPEmailSender)
 
 
-@pytest.mark.parametrize("cls", [SMTPEmailSender, LoggingEmailSender])
+@pytest.mark.parametrize(
+    "cls", [SMTPEmailSender, LoggingEmailSender, BrevoEmailSender]
+)
 @pytest.mark.parametrize(
     "to,subject", [("a@b.com\r\nBcc: x@y.z", "s"), ("a@b.com", "s\nBcc: x@y.z")]
 )
@@ -89,6 +96,30 @@ def test_smtp_sender_uses_tls_and_login(monkeypatch):
     smtp.login.assert_called_once_with("u", "p")
     sent = smtp.send_message.call_args.args[0]
     assert sent.is_multipart()
+
+
+def test_brevo_sender_posts_to_api(monkeypatch):
+    monkeypatch.setattr(settings, "BREVO_API_KEY", "key-123")
+    monkeypatch.setattr(settings, "EMAIL_FROM", "ProLens <hello@example.com>")
+    post = MagicMock(return_value=MagicMock(status_code=201))
+    monkeypatch.setattr(email_mod.httpx, "post", post)
+    BrevoEmailSender().send(EmailMessage("a@b.com", "S", "t", "<p>h</p>"))
+    assert post.call_args.args[0] == email_mod.BREVO_API_URL
+    assert post.call_args.kwargs["headers"]["api-key"] == "key-123"
+    body = post.call_args.kwargs["json"]
+    assert body["sender"] == {"email": "hello@example.com", "name": "ProLens"}
+    assert body["to"] == [{"email": "a@b.com"}]
+    assert body["htmlContent"] == "<p>h</p>"
+
+
+def test_brevo_error_hides_api_key(monkeypatch):
+    monkeypatch.setattr(settings, "BREVO_API_KEY", "key-123")
+    resp = MagicMock(status_code=401)
+    resp.json.return_value = {"message": "Key not found"}
+    monkeypatch.setattr(email_mod.httpx, "post", MagicMock(return_value=resp))
+    with pytest.raises(RuntimeError) as exc:
+        BrevoEmailSender().send(EmailMessage("a@b.com", "S", "t"))
+    assert "401" in str(exc.value) and "key-123" not in str(exc.value)
 
 
 def test_backoff(monkeypatch):

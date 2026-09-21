@@ -1,9 +1,20 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -66,6 +77,13 @@ class Comment(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         Index("idx_comments_feature", "feature_id"),
         Index("idx_comments_task", "task_id"),
         Index("idx_comments_activity", "activity_id"),
+        Index(
+            "idx_comments_project_thread",
+            "project_id",
+            text("created_at DESC"),
+            text("id DESC"),
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
     )
 
 
@@ -117,4 +135,29 @@ class Attachment(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         Index("idx_attachments_feature", "feature_id"),
         Index("idx_attachments_task", "task_id"),
         Index("idx_attachments_activity", "activity_id"),
+    )
+
+
+class ProjectDiscussionRead(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Per-user read marker for a project's discussion thread."""
+
+    __tablename__ = "project_discussion_reads"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False
+    )
+    last_read_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "project_id", name="uq_discussion_read_user_project"
+        ),
     )
