@@ -1,3 +1,4 @@
+import functools
 import hashlib
 import secrets
 import uuid
@@ -14,7 +15,20 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+    try:
+        return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+    except ValueError:  # malformed hash, or password longer than bcrypt's 72 bytes
+        return False
+
+
+@functools.lru_cache(maxsize=1)
+def _dummy_hash() -> str:
+    return hash_password("prolens-dummy-password")
+
+
+def verify_dummy_password(password: str) -> None:
+    """Burn the same bcrypt time as a real check (unknown-user login path)."""
+    verify_password(password, _dummy_hash())
 
 
 def create_access_token(user_id: uuid.UUID, organization_id: uuid.UUID | None) -> str:

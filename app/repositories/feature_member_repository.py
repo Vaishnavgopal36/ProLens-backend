@@ -2,7 +2,6 @@ import uuid
 
 from sqlalchemy import select
 
-from app.models.enums import UserRole
 from app.models.project import FeatureMember
 from app.repositories.base_repository import BaseRepository
 
@@ -42,6 +41,8 @@ class FeatureMemberRepository(BaseRepository[FeatureMember]):
         id: uuid.UUID | None = None,
         feature_id: uuid.UUID | None = None,
         user_id: uuid.UUID | None = None,
+        limit: int = 100,
+        offset: int = 0,
     ) -> list[FeatureMember]:
 
         stmt = select(FeatureMember).where(FeatureMember.removed_at.is_(None))
@@ -55,4 +56,5 @@ class FeatureMemberRepository(BaseRepository[FeatureMember]):
         if user_id is not None:
             stmt = stmt.where(FeatureMember.user_id == user_id)
 
-        return list(self.db.scalars(stmt))
+        stmt = stmt.order_by(FeatureMember.assigned_at, FeatureMember.id)
+        return list(self.db.scalars(stmt.limit(limit).offset(offset)))

@@ -4,9 +4,9 @@ from app.models.enums import (
     CalendarEventType,
     EntityStatus,
     HealthStatus,
-    InvitationStatus,
     LeaveType,
     OrgStatus,
+    OutboxStatus,
     PriorityLevel,
     ProjectStatus,
     ReportJobStatus,
@@ -15,7 +15,7 @@ from app.models.enums import (
     UserRole,
     UserStatus,
 )
-from app.models.invitation import Invitation
+from app.models.outbox import EmailOutbox
 from app.models.ops import AuditLog, OrgInsightSnapshot, ReportJob
 from app.models.project import Feature, FeatureMember, Project, ProjectMember
 from app.models.session import UserSession
@@ -35,7 +35,7 @@ __all__ = [
     "PriorityLevel",
     "LeaveType",
     "CalendarEventType",
-    "InvitationStatus",
+    "OutboxStatus",
     "ReportJobType",
     "ReportJobStatus",
     "HealthStatus",
@@ -46,8 +46,8 @@ __all__ = [
     "Designation",
     "User",
     "UserPreference",
-    "Invitation",
     "UserSession",
+    "EmailOutbox",
     "SSOConnection",
     # Project & Task Breakdown
     "Project",

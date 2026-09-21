@@ -47,9 +47,6 @@ class Task(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
-    deleted_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
-    )
 
     # Relationships
     feature: Mapped[Feature | None] = relationship(back_populates="tasks")
@@ -130,9 +127,6 @@ class Activity(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
-    )
-    deleted_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
 

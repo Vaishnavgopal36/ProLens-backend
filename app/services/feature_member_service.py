@@ -14,7 +14,7 @@ from app.core.exception import (
     ProjectMembershipRequiredError,
     ProjectNotFoundError,
 )
-from app.models.enums import UserRole
+from app.models.enums import UserRole, UserStatus
 from app.models.project import Feature, FeatureMember
 from app.models.user import User
 
@@ -70,7 +70,7 @@ class FeatureMemberService:
         feature: Feature,
     ) -> None:
 
-        if caller.role == UserRole.admin:
+        if caller.role in (UserRole.admin, UserRole.super_admin):
             return
 
         if caller.role == UserRole.manager:
@@ -100,7 +100,7 @@ class FeatureMemberService:
 
         user = self.users.get_active_by_id(payload.user_id)
 
-        if user is None:
+        if user is None or user.status != UserStatus.active:
             raise UserNotFoundError()
 
         if user.organization_id != caller.organization_id:
@@ -135,12 +135,16 @@ class FeatureMemberService:
         id: uuid.UUID | None = None,
         feature_id: uuid.UUID | None = None,
         user_id: uuid.UUID | None = None,
+        limit: int = 100,
+        offset: int = 0,
     ) -> list[FeatureMember]:
 
         return self.feature_members.list_filtered(
             id=id,
             feature_id=feature_id,
             user_id=user_id,
+            limit=limit,
+            offset=offset,
         )
 
     def delete_feature_member(

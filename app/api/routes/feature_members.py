@@ -5,6 +5,7 @@ from fastapi import status as http_status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.api.pagination import Pagination, get_pagination
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.common_response import APIResponse, success_response
@@ -56,6 +57,7 @@ def list_feature_members(
     id: uuid.UUID | None = None,
     feature_id: uuid.UUID | None = None,
     user_id: uuid.UUID | None = None,
+    pagination: Pagination = Depends(get_pagination),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ) -> APIResponse[list[FeatureMemberRead]]:
@@ -66,6 +68,8 @@ def list_feature_members(
         id=id,
         feature_id=feature_id,
         user_id=user_id,
+        limit=pagination.limit,
+        offset=pagination.offset,
     )
 
     return success_response(

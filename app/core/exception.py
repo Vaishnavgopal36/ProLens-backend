@@ -125,21 +125,25 @@ class DomainAlreadyInUseError(AppException):
 
 class AdminCredentialsIncompleteError(AppException):
     status_code = 422
+    status_message = "Unprocessable Entity"
     default_message = "admin_email and admin_password must be provided together"
 
 
 class DesignationNotFoundError(AppException):
     status_code = 404
+    status_message = "Not Found"
     default_message = "Designation not found"
 
 
 class CallerHasNoOrganizationError(AppException):
     status_code = 403
+    status_message = "Forbidden"
     default_message = "Must belong to an organization"
 
 
 class FieldNotEditableError(AppException):
     status_code = 403
+    status_message = "Forbidden"
 
     def __init__(self, fields: set[str]):
         super().__init__(f"You are not allowed to edit: {', '.join(fields)}")
@@ -147,26 +151,31 @@ class FieldNotEditableError(AppException):
 
 class CannotDeleteSelfError(AppException):
     status_code = 403
+    status_message = "Forbidden"
     default_message = "You cannot delete your own account"
 
 
 class CannotDeletePrivilegedUserError(AppException):
     status_code = 403
+    status_message = "Forbidden"
     default_message = "You do not have permission to delete this user"
 
 
 class CannotDeleteLastAdminError(AppException):
     status_code = 409
+    status_message = "Conflict"
     default_message = "Cannot delete the last remaining admin of this organization"
 
 
 class InsufficientPermissionError(AppException):
     status_code = 403
+    status_message = "Forbidden"
     default_message = "Insufficient permissions"
 
 
 class InvalidCredentialsAuthError(AppException):
     status_code = 401
+    status_message = "Unauthorized"
     default_message = "Could not validate credentials"
 
 
@@ -185,24 +194,17 @@ class UnsupportedSSOProviderError(AppException):
     default_message = "Unsupported provider for sync"
 
 
-class FeatureNotFoundError(AppException):
-    status_code = 404
-    default_message = "Feature not found"
-
-
 class NotProjectMemberError(AppException):
     status_code = 403
+    status_message = "Forbidden"
     default_message = "Not a member of this project"
 
 
 class TaskNotFoundError(AppException):
     status_code = 404
+    status_message = "Not Found"
     default_message = "Task not found"
 
-class MustBelongToOrganizationError(AppException):
-    status_code = 403
-    status_message = "Forbidden"
-    default_message = "Must belong to an organization"
 
 class ProjectNotFoundError(AppException):
     status_code = 404
@@ -227,6 +229,7 @@ class ProjectHasTasksError(AppException):
     status_message = "Conflict"
     default_message = "Project has associated tasks and cannot be deleted"
 
+
 class ProjectMemberNotFoundError(AppException):
     status_code = 404
     status_message = "Not Found"
@@ -249,7 +252,7 @@ class InvalidProjectMemberRoleError(AppException):
     status_code = 403
     status_message = "Forbidden"
     default_message = (
-        "Only managers can be added directly; " "invite employees via /invitations"
+        "Only managers can be added directly; invite employees via /invitations"
     )
 
 
@@ -292,8 +295,11 @@ class FeatureMemberMutationForbiddenError(AppException):
     status_code = 403
     status_message = "Forbidden"
     default_message = "Insufficient permissions"
-    
+
+
 class EmployeeOnLeaveError(AppException):
     status_code = 409
     status_message = "Conflict"
-    default_message = "Employee is on leave and cannot complete this task by its due date"
+    default_message = (
+        "Employee is on leave and cannot complete this task by its due date"
+    )

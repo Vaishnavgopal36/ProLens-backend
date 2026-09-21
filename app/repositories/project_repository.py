@@ -1,11 +1,22 @@
-from app.repositories.base_repository import BaseRepository
-from app.models.project import Project
 import uuid
-from app.models.enums import ProjectStatus
-from sqlalchemy import select, func
-from app.models.project import ProjectMember
+
+from sqlalchemy import func, select
+
+from app.models.enums import ProjectStatus, UserRole
+from app.models.project import Feature, Project, ProjectMember
 from app.models.task import Task
-from app.models.project import Feature
+from app.models.user import User
+from app.repositories.base_repository import BaseRepository
+
+ORG_WIDE_ROLES = (UserRole.admin, UserRole.super_admin)
+
+
+def member_project_ids(user_id: uuid.UUID):
+    """Subquery of the project ids the user is an active member of."""
+    return select(ProjectMember.project_id).where(
+        ProjectMember.user_id == user_id,
+        ProjectMember.removed_at.is_(None),
+    )
 
 
 class ProjectRepository(BaseRepository[Project]):
@@ -25,11 +36,17 @@ class ProjectRepository(BaseRepository[Project]):
     def list_filtered(
         self,
         *,
+        caller: User,
         id: uuid.UUID | None = None,
         status: ProjectStatus | None = None,
         organization_id: uuid.UUID | None = None,
+        limit: int = 100,
+        offset: int = 0,
     ) -> list[Project]:
         stmt = select(Project).where(Project.deleted_at.is_(None))
+
+        if caller.role not in ORG_WIDE_ROLES:
+            stmt = stmt.where(Project.id.in_(member_project_ids(caller.id)))
 
         if id is not None:
             stmt = stmt.where(Project.id == id)
@@ -40,7 +57,8 @@ class ProjectRepository(BaseRepository[Project]):
         if organization_id is not None:
             stmt = stmt.where(Project.organization_id == organization_id)
 
-        return list(self.db.scalars(stmt))
+        stmt = stmt.order_by(Project.created_at, Project.id)
+        return list(self.db.scalars(stmt.limit(limit).offset(offset)))
 
     def is_member(
         self,
@@ -60,15 +78,16 @@ class ProjectRepository(BaseRepository[Project]):
         project_id: uuid.UUID,
     ) -> int:
         stmt = (
-            select(func.count(Task.id))
+            select(func.coalesce(func.count(Task.id), 0))
             .join(
                 Feature,
                 Task.feature_id == Feature.id,
             )
             .where(
                 Feature.project_id == project_id,
+                Feature.deleted_at.is_(None),
                 Task.deleted_at.is_(None),
             )
         )
 
-        return self.db.scalar(stmt)
+        return int(self.db.scalar(stmt) or 0)

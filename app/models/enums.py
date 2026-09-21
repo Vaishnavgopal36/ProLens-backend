@@ -57,11 +57,11 @@ class CalendarEventType(str, enum.Enum):
     team_event = "team_event"
 
 
-class InvitationStatus(str, enum.Enum):
+class OutboxStatus(str, enum.Enum):
     pending = "pending"
-    accepted = "accepted"
-    expired = "expired"
-    revoked = "revoked"
+    processing = "processing"
+    sent = "sent"
+    failed = "failed"
 
 
 class ReportJobType(str, enum.Enum):

@@ -11,7 +11,6 @@ from app.api.routes import (
     designations,
     feature_members,
     features,
-    invitations,
     leave_logs,
     organizations,
     project_members,
@@ -48,7 +47,6 @@ app.include_router(designations.router)
 app.include_router(projects.router)
 app.include_router(feature_members.router)
 app.include_router(features.router)
-app.include_router(invitations.router)
 app.include_router(leave_logs.router)
 app.include_router(project_members.router)
 app.include_router(task_assignees.router)
