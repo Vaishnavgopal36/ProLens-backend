@@ -27,11 +27,11 @@ class AzureADClient:
         self.client_id = client_id
         self.client_secret = client_secret
         self.tenant_id = tenant_id if tenant_id else "organizations"
-        
+
     def _get_token(self, target_tenant_id: Optional[str] = None) -> str:
         """Acquires an app-only access token via client credentials grant.
-        
-        Note: Client credentials flow requires a specific tenant ID or domain 
+
+        Note: Client credentials flow requires a specific tenant ID or domain
         and cannot run against the generic 'organizations' endpoint.
         """
         tenant = target_tenant_id or self.tenant_id
@@ -54,7 +54,9 @@ class AzureADClient:
         resp.raise_for_status()
         return resp.json()["access_token"]
 
-    def list_users(self, target_tenant_id: Optional[str] = None) -> list[dict[str, Any]]:
+    def list_users(
+        self, target_tenant_id: Optional[str] = None
+    ) -> list[dict[str, Any]]:
         """Lists users in a specific tenant directory using app-only permissions."""
         token = self._get_token(target_tenant_id=target_tenant_id)
         headers = {"Authorization": f"Bearer {token}"}
@@ -88,7 +90,9 @@ class AzureADClient:
             f"?{urlencode(params)}"
         )
 
-    def exchange_code(self, code: str, redirect_uri: str, code_verifier: str) -> dict[str, Any]:
+    def exchange_code(
+        self, code: str, redirect_uri: str, code_verifier: str
+    ) -> dict[str, Any]:
         """Exchanges authorization code for tokens."""
         resp = httpx.post(
             f"https://login.microsoftonline.com/{self.tenant_id}/oauth2/v2.0/token",

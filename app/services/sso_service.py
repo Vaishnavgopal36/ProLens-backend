@@ -84,7 +84,11 @@ class SSOService:
         if claims.get("nonce") != state_payload["nonce"]:
             raise InvalidSSOStateError()
 
-        subject_id = claims["oid"] if connection.provider == SSOProvider.azure_ad else claims["sub"]
+        subject_id = (
+            claims["oid"]
+            if connection.provider == SSOProvider.azure_ad
+            else claims["sub"]
+        )
         email = claims.get("email") or claims.get("preferred_username")
         if not email:
             raise MissingEmailClaimError()
@@ -93,7 +97,10 @@ class SSOService:
 
         if user is None:
             email_match = self.users.get_by_email(email)
-            if email_match is not None and email_match.organization_id not in (None, org_id):
+            if email_match is not None and email_match.organization_id not in (
+                None,
+                org_id,
+            ):
                 email_match = None
             user = email_match
 

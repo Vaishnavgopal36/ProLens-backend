@@ -2,16 +2,16 @@ import uuid
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.core.sso_clients import get_sso_client
 
 from app.api.deps import assert_same_organization
 from app.core.exception import (
-    OrganizationIdRequiredError,
     CrossOrganizationForbiddenError,
+    OrganizationIdRequiredError,
     SSOConnectionAlreadyExistsError,
     SSOConnectionNotFoundError,
     UnsupportedSSOProviderError,
 )
+from app.core.sso_clients import get_sso_client
 from app.models.enums import SSOProvider, UserRole, UserStatus
 from app.models.sso import SSOConnection
 from app.models.user import User
@@ -41,7 +41,9 @@ class SSOConnectionService:
 
         return caller.organization_id
 
-    def create_connection(self, caller: User, payload: SSOConnectionCreate) -> SSOConnection:
+    def create_connection(
+        self, caller: User, payload: SSOConnectionCreate
+    ) -> SSOConnection:
         organization_id = self._resolve_organization_id(caller, payload.organization_id)
 
         if self.connections.get_connection_by_org_id(organization_id):
@@ -160,4 +162,6 @@ class SSOConnectionService:
         except NotImplementedError:
             raise UnsupportedSSOProviderError()
 
-        return self._upsert_users_from_directory(connection.organization_id, directory_users)
+        return self._upsert_users_from_directory(
+            connection.organization_id, directory_users
+        )
