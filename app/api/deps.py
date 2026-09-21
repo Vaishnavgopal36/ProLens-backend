@@ -23,11 +23,12 @@ def bypass_rls_for_pre_auth_lookup(db: Session) -> None:
     db.execute(text("SET LOCAL app.is_super_admin = 'true'"))
 
 
-def get_current_user(
-    request: Request,
-    db: Session = Depends(get_db),
-) -> User:
-    token = request.cookies.get("access_token")
+def authenticate_access_token(token: str | None, db: Session) -> tuple[User, dict]:
+    """Validate an access-token JWT and load its user, setting RLS session vars.
+
+    Shared by the REST dependency and the WebSocket handshake. Returns the user
+    and the decoded token payload (callers may need ``exp``).
+    """
     if token is None:
         raise InvalidCredentialsAuthError()
 
@@ -63,6 +64,14 @@ def get_current_user(
     if not is_account_usable(user, organization):
         raise InvalidCredentialsAuthError()
 
+    return user, payload
+
+
+def get_current_user(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> User:
+    user, _ = authenticate_access_token(request.cookies.get("access_token"), db)
     return user
 
 

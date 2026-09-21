@@ -13,6 +13,7 @@ from app.api.routes import (
     comments,
     designations,
     discussion,
+    discussion_ws,
     feature_members,
     features,
     leave_logs,
@@ -73,6 +74,7 @@ app.include_router(time_logs.router)
 app.include_router(calendar_events.router)
 app.include_router(comments.router)
 app.include_router(discussion.router)
+app.include_router(discussion_ws.router)
 app.include_router(attachments.router)
 app.include_router(activities.router)
 app.include_router(activity_assignees.router)

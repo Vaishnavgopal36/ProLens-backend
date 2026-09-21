@@ -113,7 +113,7 @@ class CommentService:
         self.db.refresh(comment)
         return comment
 
-    def delete_comment(self, comment_id: uuid.UUID, caller: User) -> None:
+    def delete_comment(self, comment_id: uuid.UUID, caller: User) -> Comment:
         comment = self._get_comment(comment_id, caller)
 
         if comment.author_id != caller.id and caller.role not in (
@@ -123,3 +123,4 @@ class CommentService:
             raise InsufficientPermissionError()
 
         self.comments.soft_delete(comment, deleted_by=caller.id)
+        return comment

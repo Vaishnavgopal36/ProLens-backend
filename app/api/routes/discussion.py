@@ -14,6 +14,7 @@ from app.schemas.discussion import (
     ReadMarker,
     UnreadRead,
 )
+from app.services import discussion_events
 from app.services.discussion_service import DiscussionService
 
 router = APIRouter(
@@ -56,6 +57,9 @@ def post_message(
 ) -> APIResponse[DiscussionMessage]:
     message = service.post_message(project_id, payload, caller)
     db.commit()
+    discussion_events.publish_event(
+        project_id, discussion_events.message_event("message.created", message)
+    )
     return success_response(
         status_code=status.HTTP_201_CREATED,
         status_message="Message posted successfully",

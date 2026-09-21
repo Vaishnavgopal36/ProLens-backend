@@ -103,6 +103,28 @@ python -m app.worker
 
 In Docker it runs as the compose service `worker`.
 
+## Real-time discussion (WebSocket)
+
+Endpoint: `WS /ws/projects/{project_id}/discussion`.
+
+- **Auth:** same HttpOnly `access_token` cookie and validation as REST
+  (`authenticate_access_token` in `app/api/deps.py`). Access rule is the same as the
+  REST discussion (active project in the caller's org, member or admin/super_admin).
+  Rejections happen before the socket is accepted (close 4401 unauthenticated,
+  4404 no access, 4403 bad origin; browsers see a failed handshake, HTTP 403).
+- **Origin:** if an `Origin` header is sent it must be in `CORS_ALLOWED_ORIGINS`.
+  A missing `Origin` (non-browser client) is allowed.
+- **Limits:** max 5 sockets per user and project (the oldest is closed with 4409);
+  text frames over 1 KiB close with 1009; the server closes with 4401 when the access
+  token expires so the client reconnects with fresh cookies.
+- **Server frames:** `{"type":"ready"}`, `{"type":"message.created"|"message.updated","data":<DiscussionMessage>}`,
+  `{"type":"message.deleted","data":{"id","project_id"}}`, `{"type":"pong"}`.
+  **Client frames:** only `{"type":"ping"}`; anything else is ignored.
+- Events are published after the DB commit (discussion POST, and comment PATCH/DELETE
+  for project comments only).
+- **Limitation:** fan-out is in-process, so it only works with a single backend
+  process. See `TECH_DEBT.md` (item 2) for the multi-process plan.
+
 ## Testing
 
 ```bash

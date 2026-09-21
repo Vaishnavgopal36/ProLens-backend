@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.schemas.comment import CommentCreate, CommentRead, CommentUpdate
 from app.schemas.common_response import APIResponse, success_response
+from app.services import discussion_events
 from app.services.comment_service import CommentService
 
 router = APIRouter(
@@ -88,7 +89,10 @@ def update_comment(
     comment = service.update_comment(
         comment_id=comment_id, payload=payload, caller=caller
     )
+    # Built before commit (attributes are loaded), published only after it succeeds.
+    event = discussion_events.build_comment_event("message.updated", comment)
     db.commit()
+    discussion_events.publish_event(comment.project_id, event)
 
     return success_response(
         status_code=status.HTTP_200_OK,
@@ -108,8 +112,11 @@ def delete_comment(
     caller: User = Depends(get_current_user),
     service: CommentService = Depends(get_comment_service),
 ) -> APIResponse[None]:
-    service.delete_comment(comment_id=comment_id, caller=caller)
+    comment = service.delete_comment(comment_id=comment_id, caller=caller)
+    project_id = comment.project_id
+    event = discussion_events.build_comment_event("message.deleted", comment)
     db.commit()
+    discussion_events.publish_event(project_id, event)
 
     return success_response(
         status_code=status.HTTP_200_OK,
