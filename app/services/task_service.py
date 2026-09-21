@@ -94,22 +94,36 @@ class TaskService:
         if caller.organization_id is None:
             raise MustBelongToOrganizationError()
 
+        project_id = payload.project_id
         if payload.feature_id is not None:
             feature = self._get_usable_feature(
                 payload.feature_id, caller.organization_id
             )
+            project_id = feature.project_id
 
             if caller.role not in ADMIN_ROLES and not self.projects.is_member(
                 feature.project_id, caller.id
+            ):
+                raise NotProjectMemberError()
+        elif project_id is not None:
+            proj = self.projects.get_active_by_id(project_id)
+            if proj is None or proj.organization_id != caller.organization_id:
+                raise ProjectNotFoundError()
+            if caller.role not in ADMIN_ROLES and not self.projects.is_member(
+                project_id, caller.id
             ):
                 raise NotProjectMemberError()
 
         task = Task(
             organization_id=caller.organization_id,
             feature_id=payload.feature_id,
+            project_id=project_id,
             name=payload.name,
             description=payload.description,
             priority=payload.priority or PriorityLevel.medium,
+            estimated_hours=payload.estimated_hours,
+            labels=payload.labels or [],
+            subtasks=payload.subtasks or [],
             start_date=payload.start_date,
             due_date=payload.due_date,
             created_by=caller.id,
@@ -122,6 +136,7 @@ class TaskService:
         *,
         caller: User,
         id: uuid.UUID | None = None,
+        project_id: uuid.UUID | None = None,
         feature_id: uuid.UUID | None = None,
         status: EntityStatus | None = None,
         priority: PriorityLevel | None = None,
@@ -131,6 +146,7 @@ class TaskService:
         return self.tasks.list_filtered(
             caller=caller,
             id=id,
+            project_id=project_id,
             feature_id=feature_id,
             status=status,
             priority=priority,

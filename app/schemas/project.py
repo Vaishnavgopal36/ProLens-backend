@@ -65,6 +65,7 @@ class ProjectRead(BaseModel):
     end_date: date | None
     status: ProjectStatus
     budget: Decimal | None
+    insights: dict | None = None
     created_by: uuid.UUID
     updated_by: uuid.UUID | None
     created_at: datetime

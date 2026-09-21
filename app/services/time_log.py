@@ -80,6 +80,8 @@ class TimeLogService:
         task_id: uuid.UUID | None = None,
         activity_id: uuid.UUID | None = None,
         log_date: date | None = None,
+        from_date: date | None = None,
+        to_date: date | None = None,
     ) -> list[TimeLog]:
         if caller.role == UserRole.employee:
             if user_id is not None and user_id != caller.id:
@@ -96,6 +98,8 @@ class TimeLogService:
             task_id=task_id,
             activity_id=activity_id,
             log_date=log_date,
+            from_date=from_date,
+            to_date=to_date,
         )
 
     def _get_own_time_log(self, time_log_id: uuid.UUID, caller: User) -> TimeLog:

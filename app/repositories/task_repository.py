@@ -24,6 +24,7 @@ class TaskRepository(BaseRepository[Task]):
         *,
         caller: User,
         id: uuid.UUID | None = None,
+        project_id: uuid.UUID | None = None,
         feature_id: uuid.UUID | None = None,
         status: EntityStatus | None = None,
         priority: PriorityLevel | None = None,
@@ -52,6 +53,11 @@ class TaskRepository(BaseRepository[Task]):
 
         if id is not None:
             stmt = stmt.where(Task.id == id)
+        if project_id is not None:
+            in_project_feature = Task.feature_id.in_(
+                select(Feature.id).where(Feature.project_id == project_id)
+            )
+            stmt = stmt.where(or_(Task.project_id == project_id, in_project_feature))
         if feature_id is not None:
             stmt = stmt.where(Task.feature_id == feature_id)
         if status is not None:

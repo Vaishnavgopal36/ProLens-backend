@@ -13,9 +13,13 @@ def _check_dates(start: date | None, due: date | None) -> None:
 
 class TaskCreate(BaseModel):
     feature_id: uuid.UUID | None = None
+    project_id: uuid.UUID | None = None
     name: str = Field(min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=10_000)
     priority: PriorityLevel | None = None
+    estimated_hours: float | None = None
+    labels: list[str] | None = None
+    subtasks: list[dict] | None = None
     start_date: date | None = None
     due_date: date | None = None
 
@@ -27,10 +31,14 @@ class TaskCreate(BaseModel):
 
 class TaskUpdate(BaseModel):
     feature_id: uuid.UUID | None = None
+    project_id: uuid.UUID | None = None
     name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=10_000)
     status: EntityStatus | None = None
     priority: PriorityLevel | None = None
+    estimated_hours: float | None = None
+    labels: list[str] | None = None
+    subtasks: list[dict] | None = None
     start_date: date | None = None
     due_date: date | None = None
 
@@ -47,10 +55,14 @@ class TaskRead(BaseModel):
     id: uuid.UUID
     organization_id: uuid.UUID
     feature_id: uuid.UUID | None
+    project_id: uuid.UUID | None = None
     name: str
     description: str | None
     status: EntityStatus
     priority: PriorityLevel
+    estimated_hours: float | None = None
+    labels: list[str] | None = None
+    subtasks: list[dict] | None = None
     start_date: date | None
     due_date: date | None
     created_by: uuid.UUID

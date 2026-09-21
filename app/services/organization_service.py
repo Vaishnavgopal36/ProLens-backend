@@ -58,12 +58,51 @@ class OrganizationService:
         *,
         id: uuid.UUID | None = None,
         status: OrgStatus | None = None,
+        include_metrics: bool = False,
+        include_audit_logs: bool = False,
         limit: int | None = None,
         offset: int = 0,
     ) -> list[Organization]:
-        return self.organizations.list_filtered(
+        from sqlalchemy import func, select
+        from app.models.project import Project
+        from app.models.ops import AuditLog
+
+        orgs = self.organizations.list_filtered(
             id=id, status=status, limit=limit, offset=offset
         )
+
+        if include_metrics or include_audit_logs:
+            for o in orgs:
+                if include_metrics:
+                    o.active_projects = self.db.scalar(
+                        select(func.count(Project.id)).where(
+                            Project.organization_id == o.id, Project.deleted_at.is_(None)
+                        )
+                    ) or 0
+                    o.total_members = self.db.scalar(
+                        select(func.count(User.id)).where(
+                            User.organization_id == o.id, User.deleted_at.is_(None)
+                        )
+                    ) or 0
+                if include_audit_logs:
+                    logs = self.db.scalars(
+                        select(AuditLog)
+                        .where(AuditLog.organization_id == o.id)
+                        .order_by(AuditLog.changed_at.desc())
+                        .limit(20)
+                    ).all()
+                    o.audit_logs = [
+                        {
+                            "id": str(l.id),
+                            "action": l.action.value,
+                            "table_name": l.table_name,
+                            "changed_at": l.changed_at.isoformat(),
+                            "user_agent": l.user_agent,
+                        }
+                        for l in logs
+                    ]
+
+        return orgs
 
     def update_organization(
         self, org_id: uuid.UUID, payload: OrganizationUpdate

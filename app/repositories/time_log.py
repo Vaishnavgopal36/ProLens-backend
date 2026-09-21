@@ -57,6 +57,8 @@ class TimeLogRepository(BaseRepository[TimeLog]):
         task_id: uuid.UUID | None = None,
         activity_id: uuid.UUID | None = None,
         log_date: date | None = None,
+        from_date: date | None = None,
+        to_date: date | None = None,
     ) -> list[TimeLog]:
         stmt = select(TimeLog).where(TimeLog.deleted_at.is_(None))
 
@@ -70,6 +72,10 @@ class TimeLogRepository(BaseRepository[TimeLog]):
             stmt = stmt.where(TimeLog.activity_id == activity_id)
         if log_date is not None:
             stmt = stmt.where(TimeLog.log_date == log_date)
+        if from_date is not None:
+            stmt = stmt.where(TimeLog.log_date >= from_date)
+        if to_date is not None:
+            stmt = stmt.where(TimeLog.log_date <= to_date)
 
         stmt = stmt.order_by(TimeLog.created_at, TimeLog.id)
         return list(self.db.scalars(stmt.limit(limit).offset(offset)))

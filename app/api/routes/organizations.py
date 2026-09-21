@@ -54,6 +54,8 @@ def create_organization(
 def list_organizations(
     id: uuid.UUID | None = None,
     status: OrgStatus | None = None,
+    include_metrics: bool = False,
+    include_audit_logs: bool = False,
     pagination: Pagination = Depends(get_pagination),
     db: Session = Depends(get_db),
     _=Depends(require_super_admin),
@@ -61,6 +63,8 @@ def list_organizations(
     organizations = OrganizationService(db).list_organizations(
         id=id,
         status=status,
+        include_metrics=include_metrics,
+        include_audit_logs=include_audit_logs,
         limit=pagination.limit,
         offset=pagination.offset,
     )

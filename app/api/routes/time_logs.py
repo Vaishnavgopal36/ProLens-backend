@@ -53,6 +53,8 @@ def list_time_logs(
     task_id: uuid.UUID | None = None,
     activity_id: uuid.UUID | None = None,
     log_date: date | None = None,
+    from_date: date | None = None,
+    to_date: date | None = None,
     pagination: Pagination = Depends(get_pagination),
     caller: User = Depends(get_current_user),
     service: TimeLogService = Depends(get_time_log_service),
@@ -65,6 +67,8 @@ def list_time_logs(
         task_id=task_id,
         activity_id=activity_id,
         log_date=log_date,
+        from_date=from_date,
+        to_date=to_date,
     )
 
     return success_response(

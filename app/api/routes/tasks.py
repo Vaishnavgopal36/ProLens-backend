@@ -40,6 +40,7 @@ def create_task(
 @router.get("", response_model=APIResponse[list[TaskRead]])
 def list_tasks(
     id: uuid.UUID | None = None,
+    project_id: uuid.UUID | None = None,
     feature_id: uuid.UUID | None = None,
     status: EntityStatus | None = None,
     priority: PriorityLevel | None = None,
@@ -50,6 +51,7 @@ def list_tasks(
     tasks = TaskService(db).list_tasks(
         caller=caller,
         id=id,
+        project_id=project_id,
         feature_id=feature_id,
         status=status,
         priority=priority,

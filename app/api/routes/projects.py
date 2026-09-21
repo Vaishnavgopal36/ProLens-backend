@@ -56,6 +56,7 @@ def list_projects(
     id: uuid.UUID | None = None,
     status: ProjectStatus | None = None,
     organization_id: uuid.UUID | None = None,
+    include_insights: bool = False,
     pagination: Pagination = Depends(get_pagination),
     db: Session = Depends(get_db),
     caller: User = Depends(get_current_user),
@@ -68,6 +69,7 @@ def list_projects(
         id=id,
         status=status,
         organization_id=organization_id,
+        include_insights=include_insights,
         limit=pagination.limit,
         offset=pagination.offset,
     )

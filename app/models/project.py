@@ -85,6 +85,25 @@ class ProjectMember(Base, UUIDPrimaryKeyMixin):
     project: Mapped[Project] = relationship(back_populates="members")
     user: Mapped[User] = relationship(foreign_keys=[user_id])
 
+    @property
+    def user_name(self) -> str | None:
+        if self.user:
+            name = f"{self.user.first_name or ''} {self.user.last_name or ''}".strip()
+            return name or self.user.email
+        return None
+
+    @property
+    def user_email(self) -> str | None:
+        return self.user.email if self.user else None
+
+    @property
+    def user_role(self) -> str | None:
+        return self.user.role.value if self.user else None
+
+    @property
+    def designation(self) -> str | None:
+        return self.user.designation.name if self.user and self.user.designation else None
+
     __table_args__ = (
         Index(
             "idx_project_members_active",

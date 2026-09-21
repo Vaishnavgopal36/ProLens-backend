@@ -1,3 +1,4 @@
+import secrets
 import uuid
 from datetime import datetime, timezone
 
@@ -13,6 +14,7 @@ from app.core.exception import (
     ProjectNotFoundError,
     UserNotFoundError,
 )
+from app.core.security import hash_password
 from app.models.enums import UserRole, UserStatus
 from app.models.project import Project, ProjectMember
 from app.models.user import User
@@ -135,7 +137,25 @@ class ProjectMemberService:
             payload.project_id, caller.organization_id
         )
 
-        target = self._get_active_user(payload.user_id)
+        if payload.user_id is not None:
+            target = self._get_active_user(payload.user_id)
+        elif payload.email is not None:
+            email_clean = payload.email.strip().lower()
+            existing_user = self.users.get_by_email(email_clean)
+            if existing_user is not None:
+                target = existing_user
+            else:
+                temp_pass = hash_password(secrets.token_urlsafe(16))
+                target = User(
+                    organization_id=caller.organization_id,
+                    email=email_clean,
+                    password_hash=temp_pass,
+                    role=UserRole.employee,
+                    status=UserStatus.active,
+                )
+                target = self.users.add(target)
+        else:
+            raise AppException("Either user_id or email must be provided", status_code=422, status_message="Unprocessable Entity")
 
         if target.organization_id != caller.organization_id:
             raise UserNotFoundError()
@@ -156,7 +176,7 @@ class ProjectMemberService:
 
         existing = self.project_members.get_active_by_project_and_user(
             project_id=payload.project_id,
-            user_id=payload.user_id,
+            user_id=target.id,
         )
 
         if existing is not None:
@@ -165,7 +185,7 @@ class ProjectMemberService:
         member = ProjectMember(
             organization_id=caller.organization_id,
             project_id=payload.project_id,
-            user_id=payload.user_id,
+            user_id=target.id,
             added_by=caller.id,
         )
         member = self.project_members.add(member)

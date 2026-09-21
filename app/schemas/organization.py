@@ -55,6 +55,9 @@ class OrganizationRead(BaseModel):
     name: str
     domain: str
     status: OrgStatus
+    active_projects: int | None = None
+    total_members: int | None = None
+    audit_logs: list[dict] | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

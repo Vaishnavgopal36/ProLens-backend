@@ -51,7 +51,7 @@ def list_users(
     status: UserStatus | None = None,
     pagination: Pagination = Depends(get_pagination),
     db: Session = Depends(get_db),
-    caller: User = Depends(require_admin),
+    caller: User = Depends(get_current_user),
 ) -> APIResponse[list[UserRead]]:
     users = UserService(db).list_users(
         caller,
