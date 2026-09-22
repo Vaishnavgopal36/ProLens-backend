@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     OUTBOX_MAX_ATTEMPTS: int = 5
     OUTBOX_RETRY_BASE_SECONDS: int = 30
 
+    AZURE_CLIENT_ID: str
+    AZURE_CLIENT_SECRET: str
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore",

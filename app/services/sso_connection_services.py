@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.core.config import settings
 from app.core.sso_clients import get_sso_client
 
 from app.api.deps import assert_same_organization
@@ -35,7 +36,16 @@ class SSOConnectionService:
         if organization_id not in (None, caller.organization_id):
             raise CrossOrganizationForbiddenError()
 
+        if caller.organization_id is None:
+            raise OrganizationIdRequiredError()
+
         return caller.organization_id
+
+    @staticmethod
+    def _vendor_credentials(provider: SSOProvider) -> tuple[str, str]:
+        if provider == SSOProvider.azure_ad:
+            return settings.AZURE_CLIENT_ID, settings.AZURE_CLIENT_SECRET
+        return settings.GOOGLE_CLIENT_ID, settings.GOOGLE_CLIENT_SECRET
 
     def create_connection(self, caller: User, payload: SSOConnectionCreate) -> SSOConnection:
         organization_id = self._resolve_organization_id(caller, payload.organization_id)
@@ -43,12 +53,14 @@ class SSOConnectionService:
         if self.connections.get_connection_by_org_id(organization_id):
             raise SSOConnectionAlreadyExistsError()
 
+        client_id, client_secret = self._vendor_credentials(payload.provider)
+
         connection = SSOConnection(
             organization_id=organization_id,
             provider=payload.provider,
-            tenant_id=payload.tenant_id,
-            client_id=payload.client_id,
-            client_secret=payload.client_secret,
+            tenant_id=None,
+            client_id=client_id,
+            client_secret=client_secret,
         )
 
         return self.connections.add(connection)
@@ -126,19 +138,17 @@ class SSOConnectionService:
             updated=updated,
         )
 
+    def sync_users(self, caller: User, connection_id: uuid.UUID) -> SSOSyncResult:
+        connection = self.connections.get_by_id(connection_id)
+        if connection is None:
+            raise SSOConnectionNotFoundError()
 
+        assert_same_organization(caller, connection.organization_id)
 
-def sync_users(self, caller: User, connection_id: uuid.UUID) -> SSOSyncResult:
-    connection = self.connections.get_by_id(connection_id)
-    if connection is None:
-        raise SSOConnectionNotFoundError()
+        client = get_sso_client(connection)
+        try:
+            directory_users = client.list_users()
+        except NotImplementedError:
+            raise UnsupportedSSOProviderError()
 
-    assert_same_organization(caller, connection.organization_id)
-
-    client = get_sso_client(connection)
-    try:
-        directory_users = client.list_users()
-    except NotImplementedError:
-        raise UnsupportedSSOProviderError()
-
-    return self._upsert_users_from_directory(connection.organization_id, directory_users)
+        return self._upsert_users_from_directory(connection.organization_id, directory_users)

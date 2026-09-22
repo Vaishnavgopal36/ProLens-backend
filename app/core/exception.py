@@ -303,3 +303,8 @@ class EmployeeOnLeaveError(AppException):
     default_message = (
         "Employee is on leave and cannot complete this task by its due date"
     )
+    
+class SSOConnectionNotConfiguredError(AppException):
+    status_code = 409
+    status_message = "Conflict"
+    default_message = "SSO connection has not finished setup — ask your admin to complete tenant discovery"

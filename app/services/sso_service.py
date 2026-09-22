@@ -1,5 +1,3 @@
-# app/services/sso_service.py
-
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -10,20 +8,24 @@ from sqlalchemy.orm import Session
 from app.core.azure_ad import generate_pkce_pair
 from app.core.config import settings
 from app.core.exception import (
-    InactiveAccountError,
     InvalidSSOStateError,
-    MissingEmailClaimError,
     NoSSOConnectionError,
+    MissingEmailClaimError,
+    InactiveAccountError,
+    SSOConnectionNotFoundError,
+    SSOConnectionNotConfiguredError,
 )
 from app.core.sso_clients import get_sso_client
 from app.models.enums import SSOProvider, UserRole, UserStatus
 from app.models.user import User
 from app.repositories.sso_repository import SSORepository
 from app.repositories.user_repository import UserRepository
-from app.schemas.auth import SSOAuthorizeResponse, TokenResponse
+from app.schemas.auth import TokenResponse
+from app.schemas.sso import SSOAuthorizeResponse
 from app.services.auth_service import AuthService
 
-SSO_STATE_EXPIRE_MINUTES = 10
+DISCOVERY_STATE_EXPIRE_MINUTES = 10
+LOGIN_STATE_EXPIRE_MINUTES = 10
 
 
 class SSOService:
@@ -33,8 +35,7 @@ class SSOService:
         self.users = UserRepository(db)
         self.auth = AuthService(db)
 
-    @staticmethod
-    def _redirect_uri() -> str:
+    def _redirect_uri(self) -> str:
         return f"{settings.PUBLIC_BASE_URL}/auth/sso/callback"
 
     def authorize(self, host: str) -> SSOAuthorizeResponse:
@@ -42,27 +43,57 @@ class SSOService:
         if connection is None:
             raise NoSSOConnectionError()
 
+        if connection.provider == SSOProvider.azure_ad and connection.tenant_id is None:
+            raise SSOConnectionNotConfiguredError()
+
         code_verifier, code_challenge = generate_pkce_pair()
         nonce = secrets.token_urlsafe(16)
         state = jwt.encode(
             {
+                "purpose": "login",
                 "org_id": str(connection.organization_id),
                 "nonce": nonce,
                 "code_verifier": code_verifier,
-                "exp": datetime.now(timezone.utc)
-                + timedelta(minutes=SSO_STATE_EXPIRE_MINUTES),
+                "exp": datetime.now(timezone.utc) + timedelta(minutes=LOGIN_STATE_EXPIRE_MINUTES),
             },
             settings.JWT_SECRET_KEY,
             algorithm=settings.JWT_ALGORITHM,
         )
 
         client = get_sso_client(connection)
-        url = client.build_authorize_url(
-            self._redirect_uri(), state, nonce, code_challenge
-        )
+        url = client.build_authorize_url(self._redirect_uri(), state, nonce, code_challenge)
         return SSOAuthorizeResponse(authorize_url=url)
 
-    def callback(self, code: str, state: str) -> TokenResponse:
+    def authorize_discovery(self, connection_id: uuid.UUID, caller: User) -> SSOAuthorizeResponse:
+        connection = self.sso.get_by_id(connection_id)
+        if connection is None:
+            raise SSOConnectionNotFoundError()
+
+        from app.api.deps import assert_same_organization
+        assert_same_organization(caller, connection.organization_id)
+
+        if connection.provider != SSOProvider.azure_ad:
+            raise ValueError("Tenant discovery only applies to Azure AD connections.")
+
+        code_verifier, code_challenge = generate_pkce_pair()
+        nonce = secrets.token_urlsafe(16)
+        state = jwt.encode(
+            {
+                "purpose": "discover",
+                "connection_id": str(connection.id),
+                "nonce": nonce,
+                "code_verifier": code_verifier,
+                "exp": datetime.now(timezone.utc) + timedelta(minutes=DISCOVERY_STATE_EXPIRE_MINUTES),
+            },
+            settings.JWT_SECRET_KEY,
+            algorithm=settings.JWT_ALGORITHM,
+        )
+
+        client = get_sso_client(connection)  # tenant_id is None -> falls back to "organizations"
+        url = client.build_authorize_url(self._redirect_uri(), state, nonce, code_challenge)
+        return SSOAuthorizeResponse(authorize_url=url)
+
+    def callback(self, code: str, state: str) -> TokenResponse | None:
         try:
             state_payload = jwt.decode(
                 state, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
@@ -70,19 +101,28 @@ class SSOService:
         except jwt.PyJWTError:
             raise InvalidSSOStateError()
 
+        if state_payload.get("purpose") == "discover":
+            self._complete_discovery(code, state_payload)
+            return None
+
+        return self._complete_login(code, state_payload)
+
+    def _complete_login(self, code: str, state_payload: dict) -> TokenResponse:
         org_id = uuid.UUID(state_payload["org_id"])
         connection = self.sso.get_connection_by_org_id(org_id)
         if connection is None:
             raise NoSSOConnectionError()
 
+        if connection.provider == SSOProvider.azure_ad and connection.tenant_id is None:
+            raise SSOConnectionNotConfiguredError()
+
         client = get_sso_client(connection)
         tokens = client.exchange_code(
             code, self._redirect_uri(), state_payload["code_verifier"]
         )
-        claims = client.decode_id_token(tokens["id_token"])
-
-        if claims.get("nonce") != state_payload["nonce"]:
-            raise InvalidSSOStateError()
+        claims = client.decode_id_token(
+            tokens["id_token"], expected_nonce=state_payload["nonce"]
+        )
 
         subject_id = claims["oid"] if connection.provider == SSOProvider.azure_ad else claims["sub"]
         email = claims.get("email") or claims.get("preferred_username")
@@ -120,3 +160,19 @@ class SSOService:
             raise InactiveAccountError()
 
         return self.auth.issue_tokens(user)
+
+    def _complete_discovery(self, code: str, state_payload: dict) -> None:
+        connection = self.sso.get_by_id(uuid.UUID(state_payload["connection_id"]))
+        if connection is None:
+            raise SSOConnectionNotFoundError()
+
+        client = get_sso_client(connection)  # still tenant_id=None -> "organizations"
+        tokens = client.exchange_code(
+            code, self._redirect_uri(), state_payload["code_verifier"]
+        )
+        claims = client.decode_id_token(
+            tokens["id_token"], expected_nonce=state_payload["nonce"]
+        )
+
+        connection.tenant_id = claims["tid"]
+        self.db.flush()
