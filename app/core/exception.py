@@ -297,9 +297,30 @@ class FeatureMemberMutationForbiddenError(AppException):
     default_message = "Insufficient permissions"
 
 
-class EmployeeOnLeaveError(AppException):
+# ---------------------------------------------------------
+# Leave Log
+# ---------------------------------------------------------
+
+
+class LeavePeriodAlreadyStartedError(AppException):
     status_code = 409
     status_message = "Conflict"
-    default_message = (
-        "Employee is on leave and cannot complete this task by its due date"
-    )
+    default_message = "The leave period has already started"
+
+
+class LeaveLogNotFoundError(AppException):
+    status_code = 404
+    status_message = "Not Found"
+    default_message = "Leave log not found"
+
+
+class LeaveLogMutationForbiddenError(AppException):
+    status_code = 403
+    status_message = "Forbidden"
+    default_message = "Insufficient permissions"
+
+
+class OverlappingLeaveError(AppException):
+    status_code = 409
+    status_message = "Conflict"
+    default_message = "Overlapping leave already exists for this period"
