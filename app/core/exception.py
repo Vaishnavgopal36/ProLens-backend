@@ -297,6 +297,14 @@ class FeatureMemberMutationForbiddenError(AppException):
     default_message = "Insufficient permissions"
 
 
+class EmployeeOnLeaveError(AppException):
+    status_code = 409
+    status_message = "Conflict"
+    default_message = (
+        "Employee is on leave and cannot complete this task by its due date"
+    )
+
+
 # ---------------------------------------------------------
 # Leave Log
 # ---------------------------------------------------------

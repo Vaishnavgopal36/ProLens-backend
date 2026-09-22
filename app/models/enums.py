@@ -69,6 +69,13 @@ class CalendarEventType(str, Enum):
     team_event = "team_event"
 
 
+class OutboxStatus(str, Enum):
+    pending = "pending"
+    processing = "processing"
+    sent = "sent"
+    failed = "failed"
+
+
 class InvitationStatus(str, Enum):
     pending = "pending"
     processing = "processing"
