@@ -1,10 +1,13 @@
 from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import bypass_rls_for_pre_auth_lookup, get_current_user
+from app.core.config import settings
 from app.core.cookies import clear_auth_cookies, set_auth_cookies
 from app.core.database import get_db
 from app.core.exception import (
+    AppException,
     InvalidCredentialsError,
     InvalidRefreshTokenError,
     InvalidSSOStateError,
@@ -128,32 +131,46 @@ def sso_authorize(
         response_data=result,
     )
 
-@router.get("/sso/callback", response_model=APIResponse[None])
+@router.get("/sso/callback")
 def sso_callback(
-    response: Response,
     db: Session = Depends(get_db),
     code: str | None = None,
     state: str | None = None,
     error: str | None = None,
-) -> APIResponse[None]:
+    error_description: str | None = None,
+) -> Response:
     if error or code is None or state is None:
-        raise InvalidSSOStateError()
+        err_msg = error_description or error or "sso_cancelled"
+        return RedirectResponse(
+            url=f"{settings.FRONTEND_BASE_URL}/login?error=sso_failed&message={err_msg}",
+            status_code=status.HTTP_302_FOUND,
+        )
 
     bypass_rls_for_pre_auth_lookup(db)
 
-    tokens = SSOService(db).callback(code, state)
-    db.commit()
-
-    if tokens is None:
-        return success_response(
-            status_code=200,
-            status_message="Azure AD tenant connected successfully",
-            response_data=None,
+    try:
+        tokens = SSOService(db).callback(code, state)
+        db.commit()
+    except AppException as e:
+        return RedirectResponse(
+            url=f"{settings.FRONTEND_BASE_URL}/login?error=sso_failed&message={e.default_message}",
+            status_code=status.HTTP_302_FOUND,
+        )
+    except Exception:
+        return RedirectResponse(
+            url=f"{settings.FRONTEND_BASE_URL}/login?error=sso_failed&message=Authentication failed",
+            status_code=status.HTTP_302_FOUND,
         )
 
-    set_auth_cookies(response, tokens)
-    return success_response(
-        status_code=200,
-        status_message="SSO login successful",
-        response_data=None,
+    if tokens is None:
+        return RedirectResponse(
+            url=f"{settings.FRONTEND_BASE_URL}/users?sso=connected",
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    redirect = RedirectResponse(
+        url=f"{settings.FRONTEND_BASE_URL}/dashboard",
+        status_code=status.HTTP_302_FOUND,
     )
+    set_auth_cookies(redirect, tokens)
+    return redirect

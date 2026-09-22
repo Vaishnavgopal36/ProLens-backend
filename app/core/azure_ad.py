@@ -94,17 +94,11 @@ class AzureADClient:
             },
             timeout=10,
         )
-        print("TOKEN EXCHANGE RESPONSE:", resp.status_code, resp.text) 
         resp.raise_for_status()
         return resp.json()
 
     def decode_id_token(self, id_token: str, expected_nonce: str) -> dict[str, Any]:
         """Decodes, verifies keys via JWKS, dynamically matches issuer, and checks nonce."""
-        jwks_client = jwt.PyJWKClient(
-            f"https://login.microsoftonline.com/{self.tenant_id}/discovery/v2.0/keys"
-        )
-        signing_key = jwks_client.get_signing_key_from_jwt(id_token)
-
         unverified_claims = jwt.decode(id_token, options={"verify_signature": False})
         token_tenant_id = unverified_claims.get("tid")
         if not token_tenant_id:
@@ -114,6 +108,12 @@ class AzureADClient:
         # refuse any token that came from a different tenant.
         if self.tenant_id != "organizations" and token_tenant_id != self.tenant_id:
             raise ValueError("Token tenant does not match the connection's configured tenant.")
+
+        keys_tenant = token_tenant_id if self.tenant_id == "organizations" else self.tenant_id
+        jwks_client = jwt.PyJWKClient(
+            f"https://login.microsoftonline.com/{keys_tenant}/discovery/v2.0/keys"
+        )
+        signing_key = jwks_client.get_signing_key_from_jwt(id_token)
 
         valid_issuers = [
             f"https://login.microsoftonline.com/{token_tenant_id}/v2.0",

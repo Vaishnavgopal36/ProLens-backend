@@ -8,6 +8,7 @@ from app.models.enums import SSOProvider
 class SSOConnectionCreate(BaseModel):
     organization_id: uuid.UUID | None = None   # only used by super_admin
     provider: SSOProvider = SSOProvider.azure_ad
+    tenant_id: str | None = None
 
 
 class SSOConnectionRead(BaseModel):

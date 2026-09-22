@@ -49,7 +49,9 @@ class SSOConnectionService:
     def _vendor_credentials(provider: SSOProvider) -> tuple[str, str]:
         if provider == SSOProvider.azure_ad:
             return settings.AZURE_CLIENT_ID, settings.AZURE_CLIENT_SECRET
-        return settings.GOOGLE_CLIENT_ID, settings.GOOGLE_CLIENT_SECRET
+        if hasattr(settings, "GOOGLE_CLIENT_ID") and hasattr(settings, "GOOGLE_CLIENT_SECRET"):
+            return settings.GOOGLE_CLIENT_ID, settings.GOOGLE_CLIENT_SECRET
+        raise UnsupportedSSOProviderError()
 
     def create_connection(self, caller: User, payload: SSOConnectionCreate) -> SSOConnection:
         organization_id = self._resolve_organization_id(caller, payload.organization_id)
@@ -62,7 +64,7 @@ class SSOConnectionService:
         connection = SSOConnection(
             organization_id=organization_id,
             provider=payload.provider,
-            tenant_id=None,
+            tenant_id=payload.tenant_id,
             client_id=client_id,
             client_secret=client_secret,
         )

@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.models.enums import SSOProvider
 from app.models.sso import SSOConnection
@@ -17,7 +17,12 @@ class SSORepository(BaseRepository[SSOConnection]):
         return self.db.scalar(
             select(SSOConnection)
             .join(Organization, Organization.id == SSOConnection.organization_id)
-            .where(Organization.domain == domain)
+            .where(func.lower(Organization.domain) == domain.strip().lower())
+        )
+
+    def get_connection_by_tenant_id(self, tenant_id: str) -> SSOConnection | None:
+        return self.db.scalar(
+            select(SSOConnection).where(SSOConnection.tenant_id == tenant_id)
         )
 
     def get_connection_by_org_id(self, org_id: uuid.UUID) -> SSOConnection | None:

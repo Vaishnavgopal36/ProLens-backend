@@ -1,3 +1,4 @@
+from typing import Any
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -5,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from sqlalchemy.orm import Session
 
-from app.core.azure_ad import generate_pkce_pair
+from app.core.azure_ad import AzureADClient, generate_pkce_pair
 from app.core.config import settings
 from app.core.exception import (
     InvalidSSOStateError,
@@ -38,29 +39,34 @@ class SSOService:
     def _redirect_uri(self) -> str:
         return f"{settings.PUBLIC_BASE_URL}/auth/sso/callback"
 
-    def authorize(self, host: str) -> SSOAuthorizeResponse:
-        connection = self.sso.get_connection_by_domain(host)
-        if connection is None:
-            raise NoSSOConnectionError()
-
-        if connection.provider == SSOProvider.azure_ad and connection.tenant_id is None:
-            raise SSOConnectionNotConfiguredError()
-
+    def authorize(self, host: str | None = None) -> SSOAuthorizeResponse:
         code_verifier, code_challenge = generate_pkce_pair()
         nonce = secrets.token_urlsafe(16)
+        state_data: dict[str, Any] = {
+            "purpose": "login",
+            "provider": SSOProvider.azure_ad.value,
+            "nonce": nonce,
+            "code_verifier": code_verifier,
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=LOGIN_STATE_EXPIRE_MINUTES),
+        }
+
+        if host:
+            clean_host = host.split("@")[-1].split(":")[0].strip().lower()
+            connection = self.sso.get_connection_by_domain(clean_host)
+            if connection:
+                state_data["org_id"] = str(connection.organization_id)
+
         state = jwt.encode(
-            {
-                "purpose": "login",
-                "org_id": str(connection.organization_id),
-                "nonce": nonce,
-                "code_verifier": code_verifier,
-                "exp": datetime.now(timezone.utc) + timedelta(minutes=LOGIN_STATE_EXPIRE_MINUTES),
-            },
+            state_data,
             settings.JWT_SECRET_KEY,
             algorithm=settings.JWT_ALGORITHM,
         )
 
-        client = get_sso_client(connection)
+        client = AzureADClient(
+            client_id=settings.AZURE_CLIENT_ID,
+            client_secret=settings.AZURE_CLIENT_SECRET,
+            tenant_id="organizations",
+        )
         url = client.build_authorize_url(self._redirect_uri(), state, nonce, code_challenge)
         return SSOAuthorizeResponse(authorize_url=url)
 
@@ -108,15 +114,11 @@ class SSOService:
         return self._complete_login(code, state_payload)
 
     def _complete_login(self, code: str, state_payload: dict) -> TokenResponse:
-        org_id = uuid.UUID(state_payload["org_id"])
-        connection = self.sso.get_connection_by_org_id(org_id)
-        if connection is None:
-            raise NoSSOConnectionError()
-
-        if connection.provider == SSOProvider.azure_ad and connection.tenant_id is None:
-            raise SSOConnectionNotConfiguredError()
-
-        client = get_sso_client(connection)
+        client = AzureADClient(
+            client_id=settings.AZURE_CLIENT_ID,
+            client_secret=settings.AZURE_CLIENT_SECRET,
+            tenant_id="organizations",
+        )
         tokens = client.exchange_code(
             code, self._redirect_uri(), state_payload["code_verifier"]
         )
@@ -124,14 +126,35 @@ class SSOService:
             tokens["id_token"], expected_nonce=state_payload["nonce"]
         )
 
-        subject_id = (
-            claims["oid"]
-            if connection.provider == SSOProvider.azure_ad
-            else claims["sub"]
-        )
-        email = claims.get("email") or claims.get("preferred_username")
+        subject_id = claims.get("oid") or claims.get("sub")
+        email = (claims.get("email") or claims.get("preferred_username") or "").strip().lower()
         if not email:
             raise MissingEmailClaimError()
+
+        tenant_id = claims.get("tid")
+
+        # 1. Resolve organization by tenant_id
+        connection = None
+        if tenant_id:
+            connection = self.sso.get_connection_by_tenant_id(tenant_id)
+
+        # 2. If not found by tenant_id, resolve by email domain
+        if connection is None and "@" in email:
+            domain = email.split("@")[-1].lower()
+            connection = self.sso.get_connection_by_domain(domain)
+            # Auto-pin tenant_id if connection exists without tenant_id
+            if connection and connection.tenant_id is None and tenant_id:
+                connection.tenant_id = tenant_id
+                self.db.flush()
+
+        # 3. Fallback to org_id from state if present
+        if connection is None and state_payload.get("org_id"):
+            connection = self.sso.get_connection_by_org_id(uuid.UUID(state_payload["org_id"]))
+
+        if connection is None:
+            raise NoSSOConnectionError()
+
+        org_id = connection.organization_id
 
         user = self.users.get_by_sso_subject_id(subject_id)
 
@@ -158,6 +181,8 @@ class SSOService:
             )
         else:
             user.sso_subject_id = subject_id
+            if user.organization_id is None:
+                user.organization_id = org_id
             if user.status == UserStatus.invited:
                 user.status = UserStatus.active
             self.db.flush()
