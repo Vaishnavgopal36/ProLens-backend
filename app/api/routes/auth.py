@@ -128,7 +128,6 @@ def sso_authorize(
         response_data=result,
     )
 
-
 @router.get("/sso/callback", response_model=APIResponse[None])
 def sso_callback(
     response: Response,
@@ -144,10 +143,17 @@ def sso_callback(
 
     tokens = SSOService(db).callback(code, state)
     db.commit()
-    set_auth_cookies(response, tokens)
 
+    if tokens is None:
+        return success_response(
+            status_code=200,
+            status_message="Azure AD tenant connected successfully",
+            response_data=None,
+        )
+
+    set_auth_cookies(response, tokens)
     return success_response(
-        status_code=status.HTTP_200_OK,
+        status_code=200,
         status_message="SSO login successful",
         response_data=None,
     )

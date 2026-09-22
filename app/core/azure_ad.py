@@ -29,11 +29,6 @@ class AzureADClient:
         self.tenant_id = tenant_id if tenant_id else "organizations"
 
     def _get_token(self, target_tenant_id: Optional[str] = None) -> str:
-        """Acquires an app-only access token via client credentials grant.
-
-        Note: Client credentials flow requires a specific tenant ID or domain
-        and cannot run against the generic 'organizations' endpoint.
-        """
         tenant = target_tenant_id or self.tenant_id
         if tenant == "organizations":
             raise ValueError(
@@ -54,10 +49,7 @@ class AzureADClient:
         resp.raise_for_status()
         return resp.json()["access_token"]
 
-    def list_users(
-        self, target_tenant_id: Optional[str] = None
-    ) -> list[dict[str, Any]]:
-        """Lists users in a specific tenant directory using app-only permissions."""
+    def list_users(self, target_tenant_id: Optional[str] = None) -> list[dict[str, Any]]:
         token = self._get_token(target_tenant_id=target_tenant_id)
         headers = {"Authorization": f"Bearer {token}"}
         url = f"{GRAPH_BASE_URL}/users?$select=id,mail,userPrincipalName,givenName,surname"
@@ -73,7 +65,6 @@ class AzureADClient:
     def build_authorize_url(
         self, redirect_uri: str, state: str, nonce: str, code_challenge: str
     ) -> str:
-        """Generates authorization URL directing users to the organizations endpoint."""
         params = {
             "client_id": self.client_id,
             "response_type": "code",
@@ -90,10 +81,7 @@ class AzureADClient:
             f"?{urlencode(params)}"
         )
 
-    def exchange_code(
-        self, code: str, redirect_uri: str, code_verifier: str
-    ) -> dict[str, Any]:
-        """Exchanges authorization code for tokens."""
+    def exchange_code(self, code: str, redirect_uri: str, code_verifier: str) -> dict[str, Any]:
         resp = httpx.post(
             f"https://login.microsoftonline.com/{self.tenant_id}/oauth2/v2.0/token",
             data={
@@ -106,32 +94,32 @@ class AzureADClient:
             },
             timeout=10,
         )
+        print("TOKEN EXCHANGE RESPONSE:", resp.status_code, resp.text) 
         resp.raise_for_status()
         return resp.json()
 
-    def decode_id_token(
-        self, id_token: str, expected_nonce: Optional[str] = None
-    ) -> dict[str, Any]:
+    def decode_id_token(self, id_token: str, expected_nonce: str) -> dict[str, Any]:
         """Decodes, verifies keys via JWKS, dynamically matches issuer, and checks nonce."""
-        # 1. Fetch public keys from Microsoft's JWKS endpoint
         jwks_client = jwt.PyJWKClient(
             f"https://login.microsoftonline.com/{self.tenant_id}/discovery/v2.0/keys"
         )
         signing_key = jwks_client.get_signing_key_from_jwt(id_token)
 
-        # 2. Extract tenant ID ('tid') from unverified token to validate dynamic issuer
         unverified_claims = jwt.decode(id_token, options={"verify_signature": False})
         token_tenant_id = unverified_claims.get("tid")
         if not token_tenant_id:
             raise ValueError("ID token missing 'tid' (tenant ID) claim.")
 
-        # 3. Accept both v2.0 and v1.0 issuer formats for the authenticated tenant
+        # If this connection is already pinned to a specific tenant (post-discovery),
+        # refuse any token that came from a different tenant.
+        if self.tenant_id != "organizations" and token_tenant_id != self.tenant_id:
+            raise ValueError("Token tenant does not match the connection's configured tenant.")
+
         valid_issuers = [
             f"https://login.microsoftonline.com/{token_tenant_id}/v2.0",
             f"https://sts.windows.net/{token_tenant_id}/",
         ]
 
-        # 4. Decode and verify signature, audience, and issuer
         claims = jwt.decode(
             id_token,
             signing_key.key,
@@ -140,8 +128,7 @@ class AzureADClient:
             issuer=valid_issuers,
         )
 
-        # 5. Prevent replay attacks by checking nonce
-        if expected_nonce and claims.get("nonce") != expected_nonce:
+        if claims.get("nonce") != expected_nonce:
             raise ValueError("ID token nonce does not match expected session nonce.")
 
         return claims
