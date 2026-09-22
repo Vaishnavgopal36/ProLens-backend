@@ -332,3 +332,9 @@ class OverlappingLeaveError(AppException):
     status_code = 409
     status_message = "Conflict"
     default_message = "Overlapping leave already exists for this period"
+
+
+class SSOConnectionNotConfiguredError(AppException):
+    status_code = 409
+    status_message = "Conflict"
+    default_message = "SSO connection has not finished setup — ask your admin to complete tenant discovery"

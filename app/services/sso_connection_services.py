@@ -20,7 +20,6 @@ from app.models.user import User
 from app.repositories.sso_repository import SSORepository
 from app.schemas.sso import (
     SSOConnectionCreate,
-    SSOConnectionUpdate,
     SSOSyncResult,
 )
 
